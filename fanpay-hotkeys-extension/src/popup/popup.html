@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FanPay Hotkeys</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="popup-container">
+    <!-- Header -->
+    <header class="header">
+      <div class="logo">
+        <span class="bolt">⚡</span>
+        <span class="title">FanPay Hotkeys</span>
+      </div>
+      <div class="header-badges">
+        <span id="hotkeys-status-badge" class="badge-status badge-on" title="Горячие клавиши активны">Хоткеи ВКЛ</span>
+      </div>
+    </header>
+
+    <!-- Profile Selector Card -->
+    <section class="card">
+      <label class="card-label" for="profile-select">Активный профиль</label>
+      <div class="select-wrapper">
+        <select id="profile-select" class="custom-select">
+          <!-- Populated dynamically -->
+        </select>
+      </div>
+    </section>
+
+    <!-- Work Shift Card -->
+    <section class="card shift-card">
+      <div class="shift-header">
+        <span class="card-label">Рабочая смена</span>
+        <span id="shift-badge" class="badge-status badge-off">Не активна</span>
+      </div>
+
+      <!-- Operator select/input row when shift is idle -->
+      <div id="shift-operator-row" class="shift-operator-row">
+        <label for="shift-operator-input" class="shift-op-label">Сменщик:</label>
+        <div class="shift-op-input-wrap">
+          <input type="text" id="shift-operator-input" class="shift-op-input" placeholder="Имя сменщика..." list="operator-suggestions">
+          <datalist id="operator-suggestions">
+            <!-- Populated dynamically from settings.operatorsList -->
+          </datalist>
+        </div>
+      </div>
+
+      <!-- Active Shift Display -->
+      <div class="shift-timer-display" id="shift-timer-display" style="display: none;">
+        <div class="shift-active-op-badge" id="shift-active-op-badge">👤 Оператор 1</div>
+        <div class="shift-timer" id="shift-timer">00:00:00</div>
+        <div class="shift-start-time" id="shift-start-time">Начало: --:--:--</div>
+        <div class="shift-live-earnings" id="shift-live-earnings">Заказов: 0 • Выручка: 0 ₽</div>
+      </div>
+
+      <div class="shift-idle-msg" id="shift-idle-msg">
+        Смена не начата
+      </div>
+
+      <!-- Last completed shift summary -->
+      <div class="shift-completed-summary" id="shift-completed-summary" style="display: none;">
+        <!-- Filled on stop -->
+      </div>
+
+      <div class="shift-action-row">
+        <button id="btn-toggle-shift" class="btn btn-shift btn-shift-start">
+          <span class="btn-icon">▶</span> Начать смену
+        </button>
+        <button id="btn-open-shift-history" class="btn btn-sm btn-outline shift-history-btn" title="Открыть историю смен">
+          ⏱️ История
+        </button>
+      </div>
+    </section>
+
+    <!-- FunPay Connection Card -->
+    <section class="card status-card">
+      <div class="status-row">
+        <span class="status-indicator" id="status-dot"></span>
+        <div class="status-info">
+          <div class="status-title" id="status-text">Проверка подключения...</div>
+          <div class="status-subtitle" id="status-sub">Определение сессии FunPay</div>
+        </div>
+      </div>
+      <div class="balance-row" id="balance-row" style="display: none;">
+        <span class="balance-label">Баланс:</span>
+        <span class="balance-value" id="balance-val">0 ₽</span>
+      </div>
+    </section>
+
+    <!-- Context Notice if FunPay is not open in active tab -->
+    <div id="funpay-tab-notice" class="notice-box" style="display: none;">
+      <span class="notice-icon">ℹ️</span>
+      <span>Откройте FunPay для работы быстрых действий и чата.</span>
+    </div>
+
+    <!-- Quick Action Buttons -->
+    <div class="actions-grid">
+      <button id="btn-sync" class="btn btn-secondary">
+        <span class="btn-icon">🔄</span> Синхронизация
+      </button>
+      <button id="btn-stats" class="btn btn-secondary">
+        <span class="btn-icon">📊</span> Статистика
+      </button>
+      <button id="btn-options" class="btn btn-primary">
+        <span class="btn-icon">⚙️</span> Настройки
+      </button>
+    </div>
+
+    <!-- Footer info -->
+    <footer class="footer">
+      <span id="sync-time">Синхронизация: никогда</span>
+      <a href="#" id="link-orders">Заказы</a>
+    </footer>
+  </div>
+
+  <script type="module" src="popup.ts"></script>
+</body>
+</html>

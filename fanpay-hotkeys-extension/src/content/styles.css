@@ -1,0 +1,231 @@
+/* FunPay Hotkeys Content Script Styles */
+
+.fphk-panel {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  box-sizing: border-box;
+  background-color: #1f2937;
+  color: #f3f4f6;
+  border: 1px solid #374151;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+  font-size: 13px;
+  line-height: 1.4;
+  z-index: 99999;
+  transition: all 0.2s ease-in-out;
+  overflow: hidden;
+}
+
+.fphk-panel.fphk-floating {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  width: 320px;
+  max-width: 90vw;
+}
+
+.fphk-panel.fphk-docked {
+  margin: 8px 0;
+  width: 100%;
+}
+
+.fphk-panel.fphk-collapsed {
+  width: auto;
+  border-radius: 20px;
+  background: transparent;
+  box-shadow: none;
+  border: none;
+}
+
+/* Collapsed Toggle Button */
+.fphk-toggle-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: #10b981;
+  color: #ffffff;
+  border: none;
+  border-radius: 20px;
+  padding: 6px 14px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 12px;
+  box-shadow: 0 4px 10px rgba(16, 185, 129, 0.4);
+  transition: transform 0.15s, background-color 0.15s;
+}
+
+.fphk-toggle-btn:hover {
+  background: #059669;
+  transform: translateY(-1px);
+}
+
+/* Header */
+.fphk-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  background-color: #111827;
+  border-bottom: 1px solid #374151;
+}
+
+.fphk-panel-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+  color: #10b981;
+  font-size: 13px;
+}
+
+.fphk-bolt {
+  font-size: 14px;
+}
+
+.fphk-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.fphk-icon-btn {
+  background: transparent;
+  border: none;
+  color: #9ca3af;
+  cursor: pointer;
+  font-size: 12px;
+  padding: 4px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.fphk-icon-btn:hover {
+  background: #374151;
+  color: #ffffff;
+}
+
+/* Toolbar */
+.fphk-panel-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  background-color: #1a2230;
+  border-bottom: 1px solid #2d3748;
+}
+
+.fphk-profile-label {
+  font-size: 12px;
+  color: #9ca3af;
+  white-space: nowrap;
+}
+
+.fphk-profile-select {
+  flex: 1;
+  background: #111827;
+  color: #f3f4f6;
+  border: 1px solid #4b5563;
+  border-radius: 4px;
+  padding: 3px 6px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.fphk-profile-select:focus {
+  outline: none;
+  border-color: #10b981;
+}
+
+/* Buttons Grid */
+.fphk-buttons-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 6px;
+  padding: 10px;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.fphk-template-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: #283344;
+  color: #e5e7eb;
+  border: 1px solid #3f4e65;
+  border-radius: 5px;
+  padding: 6px 8px;
+  cursor: pointer;
+  font-size: 12px;
+  text-align: left;
+  transition: background 0.15s, border-color 0.15s;
+  overflow: hidden;
+}
+
+.fphk-template-btn:hover {
+  background: #334155;
+  border-color: #10b981;
+  color: #ffffff;
+}
+
+.fphk-key-tag {
+  background: #0f172a;
+  color: #38bdf8;
+  font-family: monospace;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 4px;
+  border-radius: 3px;
+  border: 1px solid #1e293b;
+  flex-shrink: 0;
+}
+
+.fphk-btn-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+
+.fphk-empty-msg {
+  grid-column: 1 / -1;
+  text-align: center;
+  color: #9ca3af;
+  font-size: 12px;
+  padding: 12px;
+}
+
+/* Toast Notification */
+.fphk-toast {
+  position: fixed;
+  top: 24px;
+  right: 24px;
+  background: #065f46;
+  color: #ecfdf5;
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  z-index: 999999;
+  border: 1px solid #059669;
+  animation: fphkFadeIn 0.2s ease-out;
+}
+
+.fphk-toast-fadeout {
+  opacity: 0;
+  transform: translateY(-8px);
+  transition: all 0.3s ease-out;
+}
+
+@keyframes fphkFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

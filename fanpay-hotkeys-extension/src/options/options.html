@@ -1,0 +1,769 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Настройки — FanPay Hotkeys & Assistant</title>
+  <link rel="stylesheet" href="options.css">
+</head>
+<body class="theme-system">
+  <div class="layout">
+    <!-- Sidebar Navigation -->
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <span class="bolt">⚡</span>
+        <div class="sidebar-title-group">
+          <span class="sidebar-title">FanPay Assistant</span>
+          <span class="sidebar-version">v1.0.0</span>
+        </div>
+      </div>
+
+      <nav class="nav-menu">
+        <button class="nav-item active" data-tab="dashboard">
+          <span class="nav-icon">📊</span> Дашборд & Статистика
+        </button>
+        <button class="nav-item" data-tab="shifts">
+          <span class="nav-icon">⏱️</span> История смен
+        </button>
+        <button class="nav-item" data-tab="orders">
+          <span class="nav-icon">📦</span> Заказы
+        </button>
+        <button class="nav-item" data-tab="clients">
+          <span class="nav-icon">👥</span> Клиенты
+        </button>
+        <button class="nav-item" data-tab="templates">
+          <span class="nav-icon">💬</span> Шаблоны
+        </button>
+        <button class="nav-item" data-tab="hotkeys">
+          <span class="nav-icon">⌨️</span> Хоткеи
+        </button>
+        <button class="nav-item" data-tab="profiles">
+          <span class="nav-icon">🎮</span> Профили
+        </button>
+        <button class="nav-item" data-tab="api">
+          <span class="nav-icon">🔑</span> FunPay API
+        </button>
+        <button class="nav-item" data-tab="general">
+          <span class="nav-icon">⚙️</span> Общие
+        </button>
+        <button class="nav-item" data-tab="backup">
+          <span class="nav-icon">💾</span> Импорт / Экспорт
+        </button>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div id="sidebar-sync-status" class="sync-status-box">
+          <span class="sync-dot"></span>
+          <span id="sidebar-sync-text">Синхронизация...</span>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main class="main-content">
+
+      <!-- ================= 1. DASHBOARD & STATS ================= -->
+      <section id="tab-dashboard" class="tab-pane active">
+        <div class="page-header">
+          <div>
+            <h1 class="page-title">Финансовая статистика</h1>
+            <p class="page-subtitle">Локальный расчет оборота, возвратов и вашей доли на FunPay</p>
+          </div>
+          <div class="header-actions">
+            <button id="btn-dashboard-sync" class="btn btn-primary">
+              <span class="icon">🔄</span> Обновить данные
+            </button>
+          </div>
+        </div>
+
+        <!-- Top Overview Cards -->
+        <div class="overview-grid">
+          <!-- Balance Card -->
+          <div class="card stat-card accent-card">
+            <div class="stat-header">
+              <span class="stat-label">Баланс FunPay</span>
+              <span class="stat-badge">Реальные данные</span>
+            </div>
+            <div class="stat-value" id="stat-balance-val">0 ₽</div>
+            <div class="stat-footer" id="stat-balance-user">Пользователь: не авторизован</div>
+          </div>
+
+          <!-- Share Setting Card -->
+          <div class="card stat-card">
+            <div class="stat-header">
+              <span class="stat-label">Моя доля</span>
+              <span class="stat-badge info-badge">Локальный расчет</span>
+            </div>
+            <div class="share-inline-input">
+              <input type="number" id="input-seller-share" min="0" max="100" step="0.5" value="10">
+              <span class="percent-sign">%</span>
+              <button id="btn-save-share" class="btn btn-sm btn-outline">Сохранить</button>
+            </div>
+            <div class="stat-footer">Доля от оборота без возвратов (не является прибылью)</div>
+          </div>
+        </div>
+
+        <!-- Period Statistics Blocks -->
+        <h2 class="section-title">Показатели по периодам (локальное время)</h2>
+        <div class="periods-grid">
+          <!-- Today -->
+          <div class="card period-card">
+            <div class="period-title">Сегодня</div>
+            <div class="period-metrics" id="period-metrics-today">
+              <!-- Populated dynamically with multi-currency & refunds -->
+            </div>
+          </div>
+
+          <!-- 7 Days -->
+          <div class="card period-card">
+            <div class="period-title">Последние 7 дней</div>
+            <div class="period-metrics" id="period-metrics-7days">
+              <!-- Populated dynamically -->
+            </div>
+          </div>
+
+          <!-- 30 Days -->
+          <div class="card period-card">
+            <div class="period-title">Последние 30 дней</div>
+            <div class="period-metrics" id="period-metrics-30days">
+              <!-- Populated dynamically -->
+            </div>
+          </div>
+
+          <!-- 90 Days -->
+          <div class="card period-card">
+            <div class="period-title">90 дней</div>
+            <div class="period-metrics" id="period-metrics-90days">
+              <!-- Populated dynamically -->
+            </div>
+          </div>
+
+          <!-- All Time -->
+          <div class="card period-card">
+            <div class="period-title">Все время</div>
+            <div class="period-metrics" id="period-metrics-all">
+              <!-- Populated dynamically -->
+            </div>
+          </div>
+        </div>
+
+        <!-- Interactive Chart Section -->
+        <h2 class="section-title">График динамики</h2>
+        <div class="card chart-card">
+          <div class="chart-header">
+            <div class="chart-toggles">
+              <button class="btn btn-sm btn-chart-type active" data-type="turnover">Оборот</button>
+              <button class="btn btn-sm btn-chart-type" data-type="orders">Заказы</button>
+              <button class="btn btn-sm btn-chart-type" data-type="share">Моя доля</button>
+            </div>
+            <div class="chart-curr-select-wrapper">
+              <label class="form-hint" style="margin:0 6px 0 0;">Валюта:</label>
+              <select id="chart-currency-select" class="custom-select" style="padding:4px 8px; font-size:12px;">
+                <option value="₽">RUB (₽)</option>
+                <option value="$">USD ($)</option>
+                <option value="€">EUR (€)</option>
+              </select>
+            </div>
+            <div class="period-toggles">
+              <button class="btn btn-sm btn-chart-days active" data-days="7">7 дней</button>
+              <button class="btn btn-sm btn-chart-days" data-days="30">30 дней</button>
+              <button class="btn btn-sm btn-chart-days" data-days="90">90 дней</button>
+            </div>
+          </div>
+          <div class="chart-body" id="chart-container">
+            <!-- Rendered SVG chart -->
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= 2. SHIFTS HISTORY ================= -->
+      <section id="tab-shifts" class="tab-pane">
+        <div class="page-header">
+          <div>
+            <h1 class="page-title">История рабочих смен</h1>
+            <p class="page-subtitle">Учёт времени сотрудников, выручки и доли за каждую смену с раздельными валютами</p>
+          </div>
+          <div class="header-actions">
+            <button id="btn-add-shift-manual" class="btn btn-primary">
+              <span class="icon">+</span> Добавить смену
+            </button>
+            <button id="btn-recalculate-shifts" class="btn btn-outline" title="Пересчитать заработок смен по актуальной базе заказов">
+              <span class="icon">🔄</span> Пересчитать выручку
+            </button>
+            <button id="btn-export-shifts-csv" class="btn btn-outline" title="Скачать историю смен в формате CSV для Excel">
+              <span class="icon">📥</span> Экспорт в CSV
+            </button>
+          </div>
+        </div>
+
+        <!-- Shift Overview Summary Cards -->
+        <div class="overview-grid" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); margin-bottom: 20px;">
+          <div class="card stat-card">
+            <div class="stat-header">
+              <span class="stat-label">Отработано времени</span>
+              <span class="stat-badge info-badge" id="shifts-total-count-badge">0 смен</span>
+            </div>
+            <div class="stat-value" id="shifts-total-hours-val">0 ч 0 мин</div>
+            <div class="stat-footer" id="shifts-avg-duration-val">Средняя смена: 0 ч</div>
+          </div>
+
+          <div class="card stat-card accent-card">
+            <div class="stat-header">
+              <span class="stat-label">Общий оборот за смены</span>
+              <span class="stat-badge" id="shifts-total-orders-badge">0 заказов</span>
+            </div>
+            <div class="stat-value" id="shifts-total-turnover-val">0 ₽</div>
+            <div class="stat-footer" id="shifts-turnover-multicurrency">Без возвратов</div>
+          </div>
+
+          <div class="card stat-card">
+            <div class="stat-header">
+              <span class="stat-label">Заработанная доля</span>
+              <span class="stat-badge info-badge">Моя доля</span>
+            </div>
+            <div class="stat-value" id="shifts-total-share-val" style="color: #34d399;">0 ₽</div>
+            <div class="stat-footer">Рассчитано по ставке смены</div>
+          </div>
+        </div>
+
+        <!-- Filters Bar -->
+        <div class="card table-filters" style="margin-bottom: 16px;">
+          <div class="filter-group" style="display: flex; gap: 12px; flex-wrap: wrap; align-items: center;">
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <label class="filter-label" for="shifts-filter-operator">Сменщик:</label>
+              <select id="shifts-filter-operator" class="custom-select select-inline">
+                <option value="all">Все сменщики</option>
+              </select>
+            </div>
+
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <label class="filter-label" for="shifts-filter-period">Период:</label>
+              <select id="shifts-filter-period" class="custom-select select-inline">
+                <option value="all">Все время</option>
+                <option value="today">Сегодня</option>
+                <option value="7days">Последние 7 дней</option>
+                <option value="30days">Последние 30 дней</option>
+                <option value="this_month">Текущий месяц</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <!-- Shifts Table -->
+        <div class="card table-card">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Дата</th>
+                <th>Сменщик</th>
+                <th>Интервал</th>
+                <th>Длительность</th>
+                <th>Заказов</th>
+                <th>Оборот</th>
+                <th>Доля</th>
+                <th>Заметка</th>
+                <th>Действия</th>
+              </tr>
+            </thead>
+            <tbody id="shifts-table-body">
+              <!-- Dynamically populated -->
+            </tbody>
+          </table>
+          <div id="shifts-empty" class="empty-state" style="display: none; padding: 24px; text-align: center;">
+            <span>История смен пуста. Начните смену в расширении или добавьте вручную.</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= 3. ORDERS ================= -->
+      <section id="tab-orders" class="tab-pane">
+        <div class="page-header">
+          <div>
+            <h1 class="page-title">Заказы</h1>
+            <p class="page-subtitle">История подтвержденных заказов с разделением статусов и возвратов</p>
+          </div>
+        </div>
+
+        <div class="card table-filters">
+          <div class="filter-group">
+            <input type="text" id="orders-search" class="input-text" placeholder="Поиск по ID, покупателю или описанию...">
+            <div class="filter-buttons">
+              <button class="btn btn-sm btn-filter active" data-period="all">Все</button>
+              <button class="btn btn-sm btn-filter" data-period="today">Сегодня</button>
+              <button class="btn btn-sm btn-filter" data-period="7days">7 дней</button>
+              <button class="btn btn-sm btn-filter" data-period="30days">30 дней</button>
+              <button class="btn btn-sm btn-filter" data-period="90days">90 дней</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="card table-card">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Дата</th>
+                <th>Клиент (Buyer ID)</th>
+                <th>Товар / Описание</th>
+                <th>Сумма</th>
+                <th>Статус</th>
+              </tr>
+            </thead>
+            <tbody id="orders-table-body">
+              <!-- Dynamically populated -->
+            </tbody>
+          </table>
+          <div id="orders-empty" class="empty-state" style="display: none; padding: 20px; text-align: center;">
+            <span>Заказы не найдены. Выполните синхронизацию на Дашборде.</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= 3. CLIENTS ================= -->
+      <section id="tab-clients" class="tab-pane">
+        <div class="page-header">
+          <div>
+            <h1 class="page-title">Клиенты</h1>
+            <p class="page-subtitle">База покупателей с группировкой строго по Buyer ID</p>
+          </div>
+        </div>
+
+        <div class="card table-filters">
+          <input type="text" id="clients-search" class="input-text" placeholder="Поиск клиента по нику или Buyer ID...">
+        </div>
+
+        <div class="card table-card">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Buyer ID</th>
+                <th>Отображаемое имя</th>
+                <th>Успешных заказов</th>
+                <th>Возвратов</th>
+                <th>Сумма покупок по валютам</th>
+                <th>Последний заказ</th>
+                <th>Действия</th>
+              </tr>
+            </thead>
+            <tbody id="clients-table-body">
+              <!-- Dynamically populated -->
+            </tbody>
+          </table>
+          <div id="clients-empty" class="empty-state" style="display: none; padding: 20px; text-align: center;">
+            <span>Клиенты не найдены.</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= 4. TEMPLATES ================= -->
+      <section id="tab-templates" class="tab-pane">
+        <div class="page-header">
+          <div>
+            <h1 class="page-title">Шаблоны быстрых сообщений</h1>
+            <p class="page-subtitle">Создавайте и настраивайте шаблоны ответов с умными переменными</p>
+          </div>
+          <div class="header-actions">
+            <button id="btn-add-template" class="btn btn-primary">
+              <span class="icon">+</span> Создать шаблон
+            </button>
+          </div>
+        </div>
+
+        <div class="card table-filters">
+          <label class="filter-label">Фильтр по профилю:</label>
+          <select id="templates-profile-filter" class="custom-select select-inline">
+            <!-- Options populated dynamically -->
+          </select>
+        </div>
+
+        <div class="templates-list" id="templates-list-container">
+          <!-- Populated dynamically -->
+        </div>
+      </section>
+
+      <!-- ================= 5. HOTKEYS ================= -->
+      <section id="tab-hotkeys" class="tab-pane">
+        <div class="page-header">
+          <div>
+            <h1 class="page-title">Горячие клавиши</h1>
+            <p class="page-subtitle">Назначение клавиш быстрого ответа (F1-F12) для выбранного профиля</p>
+          </div>
+        </div>
+
+        <div class="card info-box">
+          <span class="info-icon">💡</span>
+          <div>
+            <strong>Как работают хоткеи:</strong> Горячие клавиши перехватываются исключительно на вкладках FunPay при открытом чате.
+            При нажатии клавиши (например, <code>F1</code>) текст вставляется в поле ввода без отправки.
+          </div>
+        </div>
+
+        <div class="card hotkeys-card">
+          <div class="hotkeys-header-row" style="margin-bottom: 14px;">
+            <label class="filter-label" style="margin-right: 8px;">Профиль:</label>
+            <select id="hotkeys-profile-select" class="custom-select select-inline">
+              <!-- Populated dynamically -->
+            </select>
+          </div>
+          <div class="hotkeys-table-container">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Клавиша</th>
+                  <th>Название шаблона</th>
+                  <th>Текст</th>
+                  <th>Статус</th>
+                  <th>Действие</th>
+                </tr>
+              </thead>
+              <tbody id="hotkeys-table-body">
+                <!-- Dynamically populated -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= 6. PROFILES ================= -->
+      <section id="tab-profiles" class="tab-pane">
+        <div class="page-header">
+          <div>
+            <h1 class="page-title">Профили товаров</h1>
+            <p class="page-subtitle">Разделение наборов шаблонов по играм и категориям</p>
+          </div>
+          <div class="header-actions">
+            <button id="btn-add-profile" class="btn btn-primary">
+              <span class="icon">+</span> Добавить профиль
+            </button>
+          </div>
+        </div>
+
+        <div class="profiles-grid" id="profiles-grid-container">
+          <!-- Populated dynamically -->
+        </div>
+      </section>
+
+      <!-- ================= 7. FUNPAY API ================= -->
+      <section id="tab-api" class="tab-pane">
+        <div class="page-header">
+          <div>
+            <h1 class="page-title">Настройки доступа к FunPay</h1>
+            <p class="page-subtitle">Ручная настройка учетных данных (golden_key)</p>
+          </div>
+        </div>
+
+        <div class="card api-card">
+          <h2 class="card-section-title">Сессионный токен golden_key</h2>
+          <p class="api-desc">
+            FunPay не имеет публичного REST API. Интеграция работает через веб-парсинг страниц при наличии сессии в браузере.<br>
+            В расширении <strong>отключено любое изменение cookies браузера</strong> ради защиты вашей сессии от разлогина. Для проверки и синхронизации держите сайт FunPay открытым в любой вкладке браузера.
+          </p>
+
+          <div class="form-group">
+            <label class="form-label" for="api-golden-key">Токен авторизации (golden_key):</label>
+            <div class="key-input-row">
+              <input type="password" id="api-golden-key" class="input-text" placeholder="Введите ваш golden_key...">
+              <button id="btn-toggle-key-visibility" class="btn btn-outline" title="Показать/скрыть">👁️</button>
+            </div>
+            <span class="form-hint">Инструкция: На сайте FunPay нажмите F12 -> Application -> Cookies -> https://funpay.com -> найдите строку golden_key и скопируйте ее значение.</span>
+          </div>
+
+          <div class="api-actions">
+            <button id="btn-test-api" class="btn btn-primary">
+              <span class="icon">🔍</span> Проверить подключение
+            </button>
+            <button id="btn-save-api" class="btn btn-outline">
+              <span class="icon">💾</span> Сохранить токен
+            </button>
+            <button id="btn-clear-api" class="btn btn-danger">
+              <span class="icon">🗑️</span> Удалить токен
+            </button>
+          </div>
+
+          <div class="api-status-box" id="api-status-box">
+            <div class="status-indicator" id="api-status-dot"></div>
+            <div class="api-status-text" id="api-status-text">Статус: токен не проверен</div>
+          </div>
+        </div>
+
+        <div class="card api-card" id="card-diagnostics" style="margin-top: 20px;">
+          <h2 class="card-section-title">Диагностический отчёт пагинации FunPay</h2>
+          <p class="api-desc">
+            Технический лог анализа страниц 1, 2, 3, параметров формы пагинации, теста POST vs GET, дедупликации и кеша.
+          </p>
+          <div style="margin-bottom: 12px; display: flex; gap: 10px;">
+            <button id="btn-copy-diag" class="btn btn-outline" style="display: none;">
+              📋 Скопировать отчёт
+            </button>
+          </div>
+          <pre id="diag-report-text" style="background: rgba(0,0,0,0.05); padding: 12px; border-radius: 6px; font-size: 12px; white-space: pre-wrap; word-break: break-all; max-height: 400px; overflow-y: auto; color: inherit;">Отчёт пока не сформирован. Нажмите «Обновить данные» на вкладке «Дашборд & Статистика».</pre>
+        </div>
+      </section>
+
+      <!-- ================= 8. GENERAL SETTINGS ================= -->
+      <section id="tab-general" class="tab-pane">
+        <div class="page-header">
+          <div>
+            <h1 class="page-title">Общие настройки</h1>
+            <p class="page-subtitle">Параметры работы горячих клавиш, интерфейса и отладки</p>
+          </div>
+        </div>
+
+        <div class="card settings-card">
+          <div class="setting-row">
+            <div class="setting-info">
+              <div class="setting-title">Горячие клавиши</div>
+              <div class="setting-desc">Включить обработку F1-F12 на страницах FunPay</div>
+            </div>
+            <label class="switch">
+              <input type="checkbox" id="setting-hotkeys-enabled">
+              <span class="slider"></span>
+            </label>
+          </div>
+
+          <div class="setting-row">
+            <div class="setting-info">
+              <div class="setting-title">Быстрая панель в чате FunPay</div>
+              <div class="setting-desc">Отображать панель шаблонов рядом с полем сообщения</div>
+            </div>
+            <label class="switch">
+              <input type="checkbox" id="setting-panel-visible">
+              <span class="slider"></span>
+            </label>
+          </div>
+
+          <div class="setting-row">
+            <div class="setting-info">
+              <div class="setting-title">Прикреплять панель над чатом</div>
+              <div class="setting-desc">Закреплять над формой ввода вместо плавающей кнопки</div>
+            </div>
+            <label class="switch">
+              <input type="checkbox" id="setting-panel-docked">
+              <span class="slider"></span>
+            </label>
+          </div>
+
+          <div class="setting-row">
+            <div class="setting-info">
+              <div class="setting-title">Тема оформления</div>
+              <div class="setting-desc">Цветовая тема интерфейса</div>
+            </div>
+            <select id="setting-theme" class="custom-select select-inline">
+              <option value="system">Системная</option>
+              <option value="dark">Тёмная</option>
+              <option value="light">Светлая</option>
+            </select>
+          </div>
+
+          <div class="setting-row">
+            <div class="setting-info">
+              <div class="setting-title">Интервал автосинхронизации (минуты)</div>
+              <div class="setting-desc">Периодичность фонового обновления (не чаще 1 раза в 5 мин)</div>
+            </div>
+            <select id="setting-sync-interval" class="custom-select select-inline">
+              <option value="5">Каждые 5 минут</option>
+              <option value="15">Каждые 15 минут</option>
+              <option value="30">Каждые 30 минут</option>
+              <option value="60">Каждый час</option>
+              <option value="0">Отключено</option>
+            </select>
+          </div>
+
+          <div class="setting-row">
+            <div class="setting-info">
+              <div class="setting-title">Developer Mode (Режим разработчика)</div>
+              <div class="setting-desc">Подробные логи в консоли браузера (без вывода токенов)</div>
+            </div>
+            <label class="switch">
+              <input type="checkbox" id="setting-dev-mode">
+              <span class="slider"></span>
+            </label>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= 9. BACKUP & EXPORT ================= -->
+      <section id="tab-backup" class="tab-pane">
+        <div class="page-header">
+          <div>
+            <h1 class="page-title">Импорт и экспорт</h1>
+            <p class="page-subtitle">Резервное копирование и перенос шаблонов и профилей</p>
+          </div>
+        </div>
+
+        <div class="card backup-card">
+          <div class="backup-block">
+            <h2 class="card-section-title">Экспорт настроек</h2>
+            <p class="backup-desc">
+              Сохранение профилей и шаблонов в файл <code>fanpay-hotkeys-backup.json</code>.<br>
+              Токены авторизации golden_key намеренно исключены из экспорта в целях безопасности.
+            </p>
+            <button id="btn-export-backup" class="btn btn-primary">
+              <span class="icon">📥</span> Скачать резервную копию
+            </button>
+          </div>
+
+          <hr class="divider">
+
+          <div class="backup-block">
+            <h2 class="card-section-title">Импорт настроек</h2>
+            <p class="backup-desc">
+              Загрузите JSON-файл резервной копии. Вы сможете выбрать объединение или перезапись.
+            </p>
+            <input type="file" id="input-backup-file" accept=".json" style="display: none;">
+            <div class="import-actions">
+              <button id="btn-import-browse" class="btn btn-outline">
+                <span class="icon">📂</span> Выбрать файл бэкапа
+              </button>
+              <span id="import-file-name" class="import-filename">Файл не выбран</span>
+            </div>
+            <div id="import-options-box" class="import-options" style="display: none; margin-top: 14px;">
+              <label class="radio-label" style="display:block; margin-bottom: 8px;">
+                <input type="radio" name="import-mode" value="merge" checked>
+                <span>Объединить (добавить отсутствующие)</span>
+              </label>
+              <label class="radio-label" style="display:block; margin-bottom: 12px;">
+                <input type="radio" name="import-mode" value="overwrite">
+                <span>Полностью перезаписать существующие шаблоны и профили</span>
+              </label>
+              <button id="btn-apply-import" class="btn btn-primary">Применить импорт</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- Modal for Creating/Editing Template -->
+  <div id="modal-template" class="modal-overlay" style="display: none;">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 class="modal-title" id="modal-template-title">Редактировать шаблон</h3>
+        <button class="modal-close" id="modal-template-close">✕</button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="tmpl-id">
+        <div class="form-group">
+          <label class="form-label">Профиль:</label>
+          <select id="tmpl-profile" class="custom-select">
+            <!-- Populated dynamically -->
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Название шаблона:</label>
+          <input type="text" id="tmpl-name" class="input-text" placeholder="Например: Приветствие">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Горячая клавиша:</label>
+          <div class="key-recorder-group">
+            <input type="text" id="tmpl-hotkey" class="input-text" placeholder="Например: F1">
+            <button id="btn-record-key" class="btn btn-outline btn-sm">Захват клавиши</button>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Текст сообщения:</label>
+          <div class="vars-toolbar">
+            <span class="vars-title">Вставить переменную:</span>
+            <button type="button" class="btn-var-tag" data-var="{username}">{username}</button>
+            <button type="button" class="btn-var-tag" data-var="{order_id}">{order_id}</button>
+            <button type="button" class="btn-var-tag" data-var="{product}">{product}</button>
+            <button type="button" class="btn-var-tag" data-var="{amount}">{amount}</button>
+            <button type="button" class="btn-var-tag" data-var="{buyer}">{buyer}</button>
+            <button type="button" class="btn-var-tag" data-var="{gamepass}">{gamepass}</button>
+            <button type="button" class="btn-var-tag" data-var="{place}">{place}</button>
+          </div>
+          <textarea id="tmpl-text" class="input-textarea" rows="4" placeholder="Текст сообщения для вставки в чат..."></textarea>
+        </div>
+        <div class="form-group inline-checkbox">
+          <label>
+            <input type="checkbox" id="tmpl-enabled" checked> Шаблон активен
+          </label>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button id="btn-cancel-template" class="btn btn-outline">Отмена</button>
+        <button id="btn-save-template" class="btn btn-primary">Сохранить</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal for Creating/Editing Profile -->
+  <div id="modal-profile" class="modal-overlay" style="display: none;">
+    <div class="modal-card modal-sm">
+      <div class="modal-header">
+        <h3 class="modal-title" id="modal-profile-title">Новый профиль</h3>
+        <button class="modal-close" id="modal-profile-close">✕</button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="prof-id">
+        <div class="form-group">
+          <label class="form-label">Название профиля:</label>
+          <input type="text" id="prof-name" class="input-text" placeholder="Например: CS2, Telegram...">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button id="btn-cancel-profile" class="btn btn-outline">Отмена</button>
+        <button id="btn-save-profile" class="btn btn-primary">Сохранить</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal for Creating/Editing Shift -->
+  <div id="modal-shift" class="modal-overlay" style="display: none;">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 class="modal-title" id="modal-shift-title">Добавить рабочую смену</h3>
+        <button class="modal-close" id="modal-shift-close">✕</button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="shift-modal-id">
+        <div class="form-group">
+          <label class="form-label">Сменщик / Оператор:</label>
+          <input type="text" id="shift-modal-operator" class="input-text" placeholder="Имя сменщика (например: Алексей)" list="operator-modal-suggestions">
+          <datalist id="operator-modal-suggestions"></datalist>
+        </div>
+        <div class="form-group-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+          <div class="form-group">
+            <label class="form-label">Время начала:</label>
+            <input type="datetime-local" id="shift-modal-start" class="input-text">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Время окончания:</label>
+            <input type="datetime-local" id="shift-modal-end" class="input-text">
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Заметка / Комментарий:</label>
+          <input type="text" id="shift-modal-note" class="input-text" placeholder="Необязательный комментарий к смене...">
+        </div>
+        <div id="shift-modal-calc-preview" style="background: rgba(0,0,0,0.2); padding: 10px; border-radius: 6px; font-size: 12px; color: var(--text-muted); margin-top: 10px;">
+          Длительность и заказы будут автоматически рассчитаны по указанному времени.
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button id="btn-cancel-shift" class="btn btn-outline">Отмена</button>
+        <button id="btn-save-shift" class="btn btn-primary">Сохранить</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal for Viewing Shift Orders -->
+  <div id="modal-shift-orders" class="modal-overlay" style="display: none;">
+    <div class="modal-card modal-lg">
+      <div class="modal-header">
+        <h3 class="modal-title" id="modal-shift-orders-title">Заказы за смену</h3>
+        <button class="modal-close" id="modal-shift-orders-close">✕</button>
+      </div>
+      <div class="modal-body" style="max-height: 400px; overflow-y: auto;">
+        <div id="shift-orders-list-content"></div>
+      </div>
+      <div class="modal-footer">
+        <button id="btn-close-shift-orders" class="btn btn-primary">Закрыть</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="options.ts"></script>
+</body>
+</html>

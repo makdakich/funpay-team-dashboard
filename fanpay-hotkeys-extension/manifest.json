@@ -1,0 +1,49 @@
+{
+  "manifest_version": 3,
+  "name": "FanPay Hotkeys & Assistant",
+  "version": "1.0.0",
+  "description": "Помощник для продавцов FunPay: горячие клавиши, шаблоны ответов, быстрая панель в чате и раздельная статистика продаж.",
+  "permissions": [
+    "storage",
+    "unlimitedStorage",
+    "scripting"
+  ],
+  "host_permissions": [
+    "*://funpay.com/*",
+    "*://*.funpay.com/*"
+  ],
+  "background": {
+    "service_worker": "service-worker.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "*://funpay.com/*",
+        "*://*.funpay.com/*"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "css": [
+        "content.css"
+      ],
+      "run_at": "document_start"
+    }
+  ],
+  "action": {
+    "default_popup": "popup/popup.html",
+    "default_title": "FanPay Hotkeys",
+    "default_icon": {
+      "16": "assets/icon16.png",
+      "48": "assets/icon48.png",
+      "128": "assets/icon128.png"
+    }
+  },
+  "options_page": "options/options.html",
+  "icons": {
+    "16": "assets/icon16.png",
+    "48": "assets/icon48.png",
+    "128": "assets/icon128.png"
+  }
+}

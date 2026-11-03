@@ -1,0 +1,1 @@
+"""FanPay Hotkeys application package."""
