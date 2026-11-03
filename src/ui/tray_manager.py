@@ -3,6 +3,7 @@
 from PySide6.QtWidgets import QSystemTrayIcon, QMenu
 from PySide6.QtGui import QIcon, QPixmap, QPainter, QColor, QFont
 from PySide6.QtCore import Qt, Signal, QObject
+from ..__version__ import __version__, __app_name__
 from ..core.profile_manager import ProfileManager
 from ..core.settings_manager import SettingsManager
 
@@ -56,7 +57,7 @@ class TrayManager(QObject):
 
         self.tray_icon = QSystemTrayIcon(parent)
         self.tray_icon.setIcon(create_app_icon(True))
-        self.tray_icon.setToolTip("FanPay Hotkeys")
+        self.tray_icon.setToolTip(f"{__app_name__} v{__version__}")
 
         self.menu = QMenu()
         self.menu.setStyleSheet(

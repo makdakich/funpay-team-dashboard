@@ -56,15 +56,7 @@ class PopupController {
     // Stats button
     const btnStats = document.getElementById('btn-stats');
     btnStats?.addEventListener('click', () => {
-      // Open options with anchor or param for stats tab
-      chrome.tabs.create({ url: chrome.runtime.getURL('options/options.html#stats') });
-    });
-
-    // Orders link
-    const linkOrders = document.getElementById('link-orders');
-    linkOrders?.addEventListener('click', (e) => {
-      e.preventDefault();
-      chrome.tabs.create({ url: chrome.runtime.getURL('options/options.html#orders') });
+      chrome.tabs.create({ url: chrome.runtime.getURL('options/options.html#dashboard') });
     });
 
     // Shift toggle button
@@ -88,11 +80,12 @@ class PopupController {
     const select = document.getElementById('profile-select') as HTMLSelectElement;
     if (select && this.state) {
       select.innerHTML = '';
+      const activeProfId = this.state.settings.selectedProfileId || this.state.settings.activeProfileId;
       for (const p of this.state.profiles) {
         const opt = document.createElement('option');
         opt.value = p.id;
         opt.textContent = p.name;
-        if (p.id === this.state.settings.selectedProfileId) {
+        if (p.id === activeProfId) {
           opt.selected = true;
         }
         select.appendChild(opt);
@@ -115,50 +108,83 @@ class PopupController {
     const badge = document.getElementById('hotkeys-status-badge');
     if (badge && this.state) {
       if (this.state.settings.hotkeysEnabled) {
-        badge.className = 'badge-status badge-on';
-        badge.textContent = 'Хоткеи ВКЛ';
+        badge.className = 'hotkey-indicator on';
+        badge.textContent = 'ХОТКЕИ ВКЛ';
       } else {
-        badge.className = 'badge-status badge-off';
-        badge.textContent = 'Хоткеи ВЫКЛ';
+        badge.className = 'hotkey-indicator';
+        badge.textContent = 'ХОТКЕИ ВЫКЛ';
       }
     }
 
     // Account & Balance Status
-    const dot = document.getElementById('status-dot');
-    const statusText = document.getElementById('status-text');
-    const statusSub = document.getElementById('status-sub');
-    const balanceRow = document.getElementById('balance-row');
+    const statusPill = document.getElementById('popup-status-badge');
+    const statusText = document.getElementById('popup-status-text');
     const balanceVal = document.getElementById('balance-val');
-    const syncTime = document.getElementById('sync-time');
 
     if (this.state?.cache.accountInfo) {
       const acc = this.state.cache.accountInfo;
-      if (dot) dot.className = 'status-indicator connected';
-      if (statusText) statusText.textContent = `FunPay: ${acc.username}`;
-      if (statusSub) statusSub.textContent = `ID: ${acc.userId} • Продаж: ${acc.activeSales}`;
-      if (balanceRow) balanceRow.style.display = 'flex';
+      if (statusPill) statusPill.className = 'connection-status-pill connected';
+      if (statusText) statusText.textContent = acc.username;
       if (balanceVal) balanceVal.textContent = formatMoney(acc.totalBalance, acc.currency);
     } else if (this.state?.cache.error) {
-      if (dot) dot.className = 'status-indicator error';
-      if (statusText) statusText.textContent = 'Ошибка авторизации';
-      if (statusSub) statusSub.textContent = this.state.cache.error;
-      if (balanceRow) balanceRow.style.display = 'none';
+      if (statusPill) statusPill.className = 'connection-status-pill';
+      if (statusText) statusText.textContent = 'Ошибка';
+      if (balanceVal) balanceVal.textContent = '0 ₽';
     } else {
-      if (dot) dot.className = 'status-indicator';
-      if (statusText) statusText.textContent = 'Сессия не синхронизирована';
-      if (statusSub) statusSub.textContent = 'Нажмите "Синхронизация" или проверьте API';
-      if (balanceRow) balanceRow.style.display = 'none';
+      if (statusPill) statusPill.className = 'connection-status-pill';
+      if (statusText) statusText.textContent = 'Офлайн';
+      if (balanceVal) balanceVal.textContent = '0 ₽';
     }
 
-    // Sync time
-    if (syncTime && this.state) {
-      if (this.state.cache.lastSyncTimestamp) {
-        const dt = new Date(this.state.cache.lastSyncTimestamp);
-        syncTime.textContent = `Синхр: ${dt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
-      } else {
-        syncTime.textContent = 'Синхронизация: никогда';
-      }
+    // Render Quick Action Templates Palette
+    this.renderQuickTemplates();
+  }
+
+  private renderQuickTemplates() {
+    const tplGrid = document.getElementById('popup-quick-templates');
+    if (!tplGrid || !this.state) return;
+
+    const activeProfId = this.state.settings.selectedProfileId || this.state.settings.activeProfileId || 'default';
+    const tpls = this.state.templates.filter(t => t.profileId === activeProfId);
+    const displayTpls = tpls.slice(0, 4);
+
+    if (displayTpls.length === 0) {
+      tplGrid.innerHTML = `
+        <div style="color:var(--text-muted); font-size:11px; grid-column:span 2; text-align:center; padding:12px 0;">
+          В профиле нет шаблонов. Добавьте их в Дашборде.
+        </div>
+      `;
+      return;
     }
+
+    tplGrid.innerHTML = displayTpls.map((t, idx) => {
+      const keyLabel = t.key || `F${idx + 1}`;
+      return `
+        <div class="popup-tpl-card" data-text="${encodeURIComponent(t.text)}" title="Нажмите, чтобы скопировать шаблон">
+          <div class="popup-tpl-top">
+            <span class="popup-tpl-name">${t.name}</span>
+            <span class="popup-tpl-key">${keyLabel}</span>
+          </div>
+          <div class="popup-tpl-snippet">${t.text}</div>
+        </div>
+      `;
+    }).join('');
+
+    tplGrid.querySelectorAll('.popup-tpl-card').forEach(card => {
+      card.addEventListener('click', () => {
+        const encoded = card.getAttribute('data-text');
+        if (encoded) {
+          const text = decodeURIComponent(encoded);
+          navigator.clipboard.writeText(text);
+          const nameEl = card.querySelector('.popup-tpl-name');
+          if (nameEl) {
+            const prev = nameEl.textContent;
+            nameEl.textContent = 'Скопировано! ✓';
+            setTimeout(() => { nameEl.textContent = prev; }, 1200);
+          }
+        }
+      });
+    });
   }
 
   private async checkCurrentTab() {
@@ -175,18 +201,17 @@ class PopupController {
   private setSyncingState(syncing: boolean) {
     const btn = document.getElementById('btn-sync');
     if (btn) {
-      btn.textContent = syncing ? '⏳ Загрузка...' : '🔄 Синхронизация';
+      btn.innerHTML = syncing ? '<span class="icon">⏳</span>' : '<span class="icon">🔄</span>';
       (btn as HTMLButtonElement).disabled = syncing;
     }
   }
 
   private showErrorStatus(msg: string) {
-    const dot = document.getElementById('status-dot');
-    const statusText = document.getElementById('status-text');
-    const statusSub = document.getElementById('status-sub');
-    if (dot) dot.className = 'status-indicator error';
-    if (statusText) statusText.textContent = 'Ошибка подключения';
-    if (statusSub) statusSub.textContent = msg;
+    const statusPill = document.getElementById('popup-status-badge');
+    const statusText = document.getElementById('popup-status-text');
+    if (statusPill) statusPill.className = 'connection-status-pill';
+    if (statusText) statusText.textContent = 'Ошибка';
+    console.warn(msg);
   }
 
   private async loadAndRenderShift() {
@@ -196,7 +221,7 @@ class PopupController {
         this.shiftState = res.shiftState;
       }
     } catch {
-      // Background waking up or direct storage access
+      // Background waking up
     }
     this.renderShiftState();
   }
@@ -207,30 +232,29 @@ class PopupController {
       this.shiftTimerInterval = null;
     }
 
+    const cockpit = document.getElementById('shift-cockpit');
     const badge = document.getElementById('shift-badge');
-    const timerDisplay = document.getElementById('shift-timer-display');
+    const idleBox = document.getElementById('shift-idle-box');
+    const activeBox = document.getElementById('shift-active-box');
     const timerVal = document.getElementById('shift-timer');
     const startTimeEl = document.getElementById('shift-start-time');
-    const idleMsg = document.getElementById('shift-idle-msg');
-    const operatorRow = document.getElementById('shift-operator-row');
     const activeOpBadge = document.getElementById('shift-active-op-badge');
     const liveEarningsEl = document.getElementById('shift-live-earnings');
     const summaryEl = document.getElementById('shift-completed-summary');
     const opInput = document.getElementById('shift-operator-input') as HTMLInputElement | null;
     const btn = document.getElementById('btn-toggle-shift') as HTMLButtonElement | null;
+    const btnText = document.getElementById('shift-btn-text');
 
     if (!btn) return;
 
     if (this.shiftState.shiftActive && typeof this.shiftState.shiftStartTime === 'number') {
-      // Active shift state
-      if (badge) {
-        badge.className = 'badge-status badge-on';
-        badge.textContent = 'В смене';
-      }
-      if (operatorRow) operatorRow.style.display = 'none';
-      if (idleMsg) idleMsg.style.display = 'none';
+      // Active shift
+      if (cockpit) cockpit.className = 'shift-cockpit-hero active';
+      if (badge) badge.textContent = 'СМЕНА В ПРОЦЕССЕ';
+      if (idleBox) idleBox.style.display = 'none';
+      if (activeBox) activeBox.style.display = 'block';
       if (summaryEl) summaryEl.style.display = 'none';
-      if (timerDisplay) timerDisplay.style.display = 'flex';
+
       if (activeOpBadge) {
         activeOpBadge.textContent = `👤 ${this.shiftState.currentOperator || 'Оператор 1'}`;
       }
@@ -238,8 +262,8 @@ class PopupController {
         startTimeEl.textContent = `Начало: ${formatTimeOnly(this.shiftState.shiftStartTime)}`;
       }
 
-      btn.className = 'btn btn-shift btn-shift-stop';
-      btn.innerHTML = '<span class="btn-icon">⏹</span> Завершить смену';
+      btn.className = 'btn-cockpit-action btn-stop';
+      if (btnText) btnText.textContent = 'Завершить смену';
 
       const updateTimer = () => {
         if (!this.shiftState.shiftStartTime) return;
@@ -248,43 +272,38 @@ class PopupController {
           timerVal.textContent = formatDuration(elapsed);
         }
 
-        // Live shift earnings from cached orders
         if (liveEarningsEl && this.state?.cache?.orders) {
           const earnings = calculateShiftEarnings(
             this.shiftState.shiftStartTime,
             Date.now(),
             this.state.cache.orders,
-            this.state.settings.sellerSharePercent ?? 10.0
+            this.state.settings.sellerSharePercent ?? 12.0
           );
           const parts: string[] = [];
           for (const [curr, amt] of Object.entries(earnings.turnoverByCurrency)) {
             if (amt > 0) {
-              const share = earnings.sellerShareByCurrency[curr] || 0;
-              parts.push(`${formatMoney(amt, curr)} (доля: ${formatMoney(share, curr)})`);
+              parts.push(formatMoney(amt, curr));
             }
           }
           const text = parts.length > 0 ? parts.join(', ') : '0 ₽';
-          liveEarningsEl.textContent = `Заказов: ${earnings.ordersCount} • Выручка: ${text}`;
+          liveEarningsEl.textContent = `${earnings.ordersCount} зак. • Выручка: ${text}`;
         }
       };
 
       updateTimer();
       this.shiftTimerInterval = window.setInterval(updateTimer, 1000);
     } else {
-      // Inactive shift state
-      if (badge) {
-        badge.className = 'badge-status badge-off';
-        badge.textContent = 'Не активна';
-      }
-      if (operatorRow) operatorRow.style.display = 'flex';
-      if (timerDisplay) timerDisplay.style.display = 'none';
+      // Inactive shift
+      if (cockpit) cockpit.className = 'shift-cockpit-hero';
+      if (badge) badge.textContent = 'СМЕНА НЕ АКТИВНА';
+      if (idleBox) idleBox.style.display = 'block';
+      if (activeBox) activeBox.style.display = 'none';
 
       if (opInput && this.shiftState.currentOperator) {
         opInput.value = this.shiftState.currentOperator;
       }
 
       if (this.lastCompletedShift) {
-        if (idleMsg) idleMsg.style.display = 'none';
         if (summaryEl) {
           summaryEl.style.display = 'block';
           const e = this.lastCompletedShift.earnings;
@@ -294,21 +313,16 @@ class PopupController {
           }
           const turnoverStr = parts.length > 0 ? parts.join(', ') : '0 ₽';
           summaryEl.innerHTML = `
-            <strong>✅ Смена завершена!</strong> (${this.lastCompletedShift.operatorName})<br>
-            ⏱ Отработано: ${formatDuration(this.lastCompletedShift.duration)}<br>
-            📦 Заказов: ${e.ordersCount} • Выручка: ${turnoverStr}
+            <strong>✅ Предыдущая:</strong> ${this.lastCompletedShift.operatorName} (${formatDuration(this.lastCompletedShift.duration)})<br>
+            ${e.ordersCount} зак. • Оборот: ${turnoverStr}
           `;
         }
       } else {
         if (summaryEl) summaryEl.style.display = 'none';
-        if (idleMsg) {
-          idleMsg.style.display = 'block';
-          idleMsg.textContent = 'Смена не начата';
-        }
       }
 
-      btn.className = 'btn btn-shift btn-shift-start';
-      btn.innerHTML = '<span class="btn-icon">▶</span> Начать смену';
+      btn.className = 'btn-cockpit-action btn-start';
+      if (btnText) btnText.textContent = 'Начать смену';
     }
   }
 
@@ -318,7 +332,6 @@ class PopupController {
 
     try {
       if (this.shiftState.shiftActive) {
-        // Confirmation before ending shift to prevent accidental termination
         const opName = this.shiftState.currentOperator || 'Оператор 1';
         const confirmed = window.confirm(`Завершить рабочую смену оператора «${opName}»?`);
         if (!confirmed) {
@@ -326,7 +339,6 @@ class PopupController {
           return;
         }
 
-        // Stop current shift
         const res = await chrome.runtime.sendMessage({ type: 'STOP_SHIFT' });
         if (res && res.shiftState) {
           this.shiftState = res.shiftState;
@@ -336,7 +348,6 @@ class PopupController {
           }
         }
       } else {
-        // Start new shift with chosen operator name
         const opInput = document.getElementById('shift-operator-input') as HTMLInputElement | null;
         const operatorName = opInput?.value?.trim() || 'Оператор 1';
         const res = await chrome.runtime.sendMessage({

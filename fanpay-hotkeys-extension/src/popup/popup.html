@@ -3,115 +3,108 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>FanPay Hotkeys</title>
+  <title>FanPay Hotkeys v2.1.0</title>
   <link rel="stylesheet" href="popup.css">
 </head>
-<body>
-  <div class="popup-container">
-    <!-- Header -->
-    <header class="header">
-      <div class="logo">
-        <span class="bolt">⚡</span>
-        <span class="title">FanPay Hotkeys</span>
+<body class="theme-obsidian-popup">
+  <div class="popup-wrapper">
+    <!-- Top Bar -->
+    <header class="popup-topbar">
+      <div class="brand-group">
+        <span class="brand-bolt">⚡</span>
+        <span class="brand-title">FANPAY HUD</span>
+        <span class="brand-version">v2.1.0</span>
       </div>
-      <div class="header-badges">
-        <span id="hotkeys-status-badge" class="badge-status badge-on" title="Горячие клавиши активны">Хоткеи ВКЛ</span>
+      <div class="topbar-actions">
+        <div id="popup-status-badge" class="connection-status-pill connected" title="Статус FunPay">
+          <span class="status-dot"></span>
+          <span id="popup-status-text">Онлайн</span>
+        </div>
+        <button id="btn-options" class="icon-btn" title="Открыть настройки & Дашборд">
+          <svg viewBox="0 0 20 20" fill="currentColor" width="14" height="14">
+            <path fill-rule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clip-rule="evenodd" />
+          </svg>
+        </button>
       </div>
     </header>
 
-    <!-- Profile Selector Card -->
-    <section class="card">
-      <label class="card-label" for="profile-select">Активный профиль</label>
-      <div class="select-wrapper">
-        <select id="profile-select" class="custom-select">
-          <!-- Populated dynamically -->
-        </select>
-      </div>
-    </section>
-
-    <!-- Work Shift Card -->
-    <section class="card shift-card">
-      <div class="shift-header">
-        <span class="card-label">Рабочая смена</span>
-        <span id="shift-badge" class="badge-status badge-off">Не активна</span>
-      </div>
-
-      <!-- Operator select/input row when shift is idle -->
-      <div id="shift-operator-row" class="shift-operator-row">
-        <label for="shift-operator-input" class="shift-op-label">Сменщик:</label>
-        <div class="shift-op-input-wrap">
-          <input type="text" id="shift-operator-input" class="shift-op-input" placeholder="Имя сменщика..." list="operator-suggestions">
-          <datalist id="operator-suggestions">
-            <!-- Populated dynamically from settings.operatorsList -->
-          </datalist>
+    <!-- Shift Cockpit Hero -->
+    <section class="shift-cockpit-hero" id="shift-cockpit">
+      <div class="cockpit-top">
+        <span class="cockpit-tag" id="shift-badge">СМЕНА НЕ АКТИВНА</span>
+        <div class="profile-pill-wrap">
+          <label for="profile-select" class="sr-only">Профиль</label>
+          <select id="profile-select" class="profile-mini-select" title="Активный игровой профиль">
+            <!-- Populated dynamically -->
+          </select>
         </div>
       </div>
 
-      <!-- Active Shift Display -->
-      <div class="shift-timer-display" id="shift-timer-display" style="display: none;">
-        <div class="shift-active-op-badge" id="shift-active-op-badge">👤 Оператор 1</div>
-        <div class="shift-timer" id="shift-timer">00:00:00</div>
-        <div class="shift-start-time" id="shift-start-time">Начало: --:--:--</div>
-        <div class="shift-live-earnings" id="shift-live-earnings">Заказов: 0 • Выручка: 0 ₽</div>
+      <!-- Idle state: Select operator -->
+      <div id="shift-idle-box" class="shift-idle-box">
+        <div class="operator-input-row">
+          <span class="operator-icon">👤</span>
+          <input type="text" id="shift-operator-input" class="operator-input" placeholder="Имя сменщика..." list="operator-suggestions">
+          <datalist id="operator-suggestions"></datalist>
+        </div>
       </div>
 
-      <div class="shift-idle-msg" id="shift-idle-msg">
-        Смена не начата
+      <!-- Active state: Chronometer display -->
+      <div id="shift-active-box" class="shift-active-box" style="display: none;">
+        <div class="active-op-badge" id="shift-active-op-badge">👤 Оператор 1</div>
+        <div class="digital-timer tabular-nums" id="shift-timer">00:00:00</div>
+        <div class="live-earnings-pill tabular-nums" id="shift-live-earnings">0 заказов • 0 ₽</div>
+        <div class="shift-started-at" id="shift-start-time">Начало: --:--:--</div>
       </div>
 
-      <!-- Last completed shift summary -->
-      <div class="shift-completed-summary" id="shift-completed-summary" style="display: none;">
+      <!-- Previous shift summary (when idle) -->
+      <div class="previous-shift-pill" id="shift-completed-summary" style="display: none;">
         <!-- Filled on stop -->
       </div>
 
-      <div class="shift-action-row">
-        <button id="btn-toggle-shift" class="btn btn-shift btn-shift-start">
-          <span class="btn-icon">▶</span> Начать смену
+      <!-- Shift Action Button -->
+      <div class="shift-btn-row">
+        <button id="btn-toggle-shift" class="btn-cockpit-action btn-start">
+          <span class="btn-symbol">▶</span>
+          <span id="shift-btn-text">Начать смену</span>
         </button>
-        <button id="btn-open-shift-history" class="btn btn-sm btn-outline shift-history-btn" title="Открыть историю смен">
-          ⏱️ История
+        <button id="btn-open-shift-history" class="btn-history-icon" title="Открыть историю смен">
+          ⏱️
         </button>
       </div>
     </section>
 
-    <!-- FunPay Connection Card -->
-    <section class="card status-card">
-      <div class="status-row">
-        <span class="status-indicator" id="status-dot"></span>
-        <div class="status-info">
-          <div class="status-title" id="status-text">Проверка подключения...</div>
-          <div class="status-subtitle" id="status-sub">Определение сессии FunPay</div>
-        </div>
+    <!-- Quick Action Templates Palette -->
+    <section class="quick-templates-section">
+      <div class="section-label-row">
+        <span class="section-micro-label">БЫСТРЫЕ ШАБЛОНЫ (ЧАТ FUNPAY)</span>
+        <span id="hotkeys-status-badge" class="hotkey-indicator on">ХОТКЕИ ВКЛ</span>
       </div>
-      <div class="balance-row" id="balance-row" style="display: none;">
-        <span class="balance-label">Баланс:</span>
-        <span class="balance-value" id="balance-val">0 ₽</span>
+      <div class="quick-templates-grid" id="popup-quick-templates">
+        <!-- Rendered dynamically -->
       </div>
     </section>
 
-    <!-- Context Notice if FunPay is not open in active tab -->
-    <div id="funpay-tab-notice" class="notice-box" style="display: none;">
-      <span class="notice-icon">ℹ️</span>
-      <span>Откройте FunPay для работы быстрых действий и чата.</span>
+    <!-- FunPay Notice if not on FunPay tab -->
+    <div id="funpay-tab-notice" class="funpay-context-notice" style="display: none;">
+      <span class="notice-spark">ℹ️</span>
+      <span>Откройте страницу FunPay для работы клавиш F1–F8 в чате.</span>
     </div>
 
-    <!-- Quick Action Buttons -->
-    <div class="actions-grid">
-      <button id="btn-sync" class="btn btn-secondary">
-        <span class="btn-icon">🔄</span> Синхронизация
-      </button>
-      <button id="btn-stats" class="btn btn-secondary">
-        <span class="btn-icon">📊</span> Статистика
-      </button>
-      <button id="btn-options" class="btn btn-primary">
-        <span class="btn-icon">⚙️</span> Настройки
-      </button>
-    </div>
-
-    <!-- Footer info -->
-    <footer class="footer">
-      <span id="sync-time">Синхронизация: никогда</span>
-      <a href="#" id="link-orders">Заказы</a>
+    <!-- Bottom Dock Bar -->
+    <footer class="popup-bottom-dock">
+      <div class="dock-balance-group">
+        <span class="dock-label">Баланс:</span>
+        <span class="dock-balance-val tabular-nums" id="balance-val">0 ₽</span>
+      </div>
+      <div class="dock-actions">
+        <button id="btn-sync" class="dock-btn" title="Синхронизировать данные">
+          <span class="icon">🔄</span>
+        </button>
+        <button id="btn-stats" class="dock-btn-primary" title="Открыть расширенный Dashboard">
+          📊 Дашборд
+        </button>
+      </div>
     </footer>
   </div>
 

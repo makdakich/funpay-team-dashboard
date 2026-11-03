@@ -8,6 +8,7 @@ from src.core.profile_manager import ProfileManager
 from src.core.template_manager import TemplateManager
 from src.core.variable_manager import VariableManager
 from src.core.settings_manager import SettingsManager
+from src.__version__ import __version__, __app_name__
 from src.ui.main_window import MainWindow
 from src.ui.dialogs.quick_menu_dialog import QuickMenuDialog
 from src.ui.dialogs.variable_dialog import VariableInputDialog
@@ -39,7 +40,7 @@ def temp_env(tmp_path):
 def test_main_window_init(qapp, temp_env):
     pm, tm, vm, sm = temp_env
     window = MainWindow(pm, tm, vm, sm)
-    assert window.windowTitle() == "FanPay Hotkeys"
+    assert window.windowTitle() == f"{__app_name__} v{__version__}"
     assert window.hotkeys_list_widget.count() == 8
     assert window.title_input.text() != ""
     assert window.shortcut_badge.text() != ""

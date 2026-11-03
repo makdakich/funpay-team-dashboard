@@ -17,3 +17,7 @@ fanpay-hotkeys-extension/dist/
 Thumbs.db
 .vscode/
 .idea/
+
+# Local audit & backups
+temp_audit/
+backups/

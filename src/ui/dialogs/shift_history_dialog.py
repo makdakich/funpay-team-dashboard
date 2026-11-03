@@ -82,18 +82,18 @@ class ShiftHistoryDialog(QDialog):
         self.table.setEditTriggers(QTableWidget.NoEditTriggers)
         self.table.setStyleSheet("""
             QTableWidget {
-                background-color: #18181b;
-                border: 1px solid #27272a;
+                background-color: #0E131F;
+                border: 1px solid #1B2436;
                 border-radius: 6px;
-                gridline-color: #27272a;
-                color: #e4e4e7;
+                gridline-color: #1B2436;
+                color: #F8FAFC;
             }
             QHeaderView::section {
-                background-color: #202024;
-                color: #a1a1aa;
+                background-color: #131B2E;
+                color: #94A3B8;
                 padding: 6px;
                 border: none;
-                border-bottom: 1px solid #27272a;
+                border-bottom: 1px solid #1B2436;
                 font-weight: 600;
             }
         """)
@@ -114,8 +114,8 @@ class ShiftHistoryDialog(QDialog):
         card = QFrame()
         card.setStyleSheet("""
             QFrame {
-                background-color: #18181b;
-                border: 1px solid #27272a;
+                background-color: #0E131F;
+                border: 1px solid #1B2436;
                 border-radius: 8px;
                 padding: 8px;
             }

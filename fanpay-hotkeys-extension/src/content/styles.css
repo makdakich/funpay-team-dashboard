@@ -303,10 +303,10 @@
 /* Expanded Card Mode */
 .fphk-widget-card {
   width: 250px;
-  background: #090D16;
-  border: 1px solid #1E293B;
-  border-radius: 10px;
-  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.6), 0 8px 10px -6px rgba(0, 0, 0, 0.4);
+  background: #080B11;
+  border: 1px solid #1B2436;
+  border-radius: 12px;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.7), 0 8px 10px -6px rgba(0, 0, 0, 0.5);
   overflow: hidden;
   color: #F8FAFC;
 }
@@ -316,8 +316,8 @@
   justify-content: space-between;
   align-items: center;
   padding: 8px 12px;
-  background: #111827;
-  border-bottom: 1px solid #1E293B;
+  background: #0E131F;
+  border-bottom: 1px solid #1B2436;
   cursor: grab;
 }
 

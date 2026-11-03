@@ -25,6 +25,7 @@ from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QKeySequence, QShortcut
 
 from ..database.models import HotkeyItem, Profile, MODE_PASTE, MODE_PASTE_ENTER, MODE_COPY_ONLY
+from ..__version__ import __version__, __app_name__
 from ..core.profile_manager import ProfileManager
 from ..core.template_manager import TemplateManager
 from ..core.variable_manager import VariableManager
@@ -95,7 +96,7 @@ class MainWindow(QMainWindow):
         self.settings_mgr = settings_mgr
         self.shift_mgr = shift_mgr or ShiftManager(self.profile_mgr.db)
 
-        self.setWindowTitle("FanPay Hotkeys")
+        self.setWindowTitle(f"{__app_name__} v{__version__}")
         self.setWindowIcon(create_app_icon(True))
         self.resize(980, 620)
         self.setMinimumSize(880, 560)

@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "FanPay Hotkeys & Assistant",
-  "version": "1.0.0",
+  "version": "2.1.0",
   "description": "Помощник для продавцов FunPay: горячие клавиши, шаблоны ответов, быстрая панель в чате и раздельная статистика продаж.",
   "permissions": [
     "storage",

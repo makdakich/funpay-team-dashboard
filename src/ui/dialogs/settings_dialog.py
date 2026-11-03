@@ -24,6 +24,7 @@ from PySide6.QtWidgets import (
     QHeaderView,
 )
 from PySide6.QtCore import Signal, Qt
+from ...__version__ import __version__, __app_name__
 from ...core.settings_manager import SettingsManager
 from ...core.profile_manager import ProfileManager
 from ..components.key_recorder import KeyRecorderDialog
@@ -37,7 +38,7 @@ class SettingsDialog(QDialog):
 
     def __init__(self, settings_mgr: SettingsManager, profile_mgr: ProfileManager, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("Настройки FanPay Hotkeys")
+        self.setWindowTitle(f"Настройки — {__app_name__} v{__version__}")
         self.setFixedSize(580, 530)
         self.setModal(True)
 

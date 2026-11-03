@@ -3,291 +3,487 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Настройки — FanPay Hotkeys & Assistant</title>
+  <title>FanPay Hotkeys & Assistant v2.1.0 — Панель управления</title>
   <link rel="stylesheet" href="options.css">
 </head>
-<body class="theme-system">
-  <div class="layout">
-    <!-- Sidebar Navigation -->
-    <aside class="sidebar">
-      <div class="sidebar-header">
-        <span class="bolt">⚡</span>
-        <div class="sidebar-title-group">
-          <span class="sidebar-title">FanPay Assistant</span>
-          <span class="sidebar-version">v1.0.0</span>
-        </div>
+<body class="theme-obsidian">
+  <!-- Top Application Command Bar -->
+  <header class="app-topbar">
+    <div class="topbar-left">
+      <div class="brand-badge">
+        <span class="brand-bolt">⚡</span>
+        <span class="brand-name">FANPAY COMMAND</span>
+        <span class="version-tag" id="app-version-badge">v2.1.0</span>
+      </div>
+      <div class="topbar-search-box">
+        <span class="search-icon">🔍</span>
+        <input type="text" id="global-search-input" placeholder="Быстрый переход по заказам, клиентам, шаблонам..." autocomplete="off">
+        <kbd class="shortcut-hint">⌘K</kbd>
+      </div>
+    </div>
+
+    <div class="topbar-right">
+      <!-- Live Shift Pill in Topbar -->
+      <div id="topbar-shift-pill" class="topbar-shift-pill shift-idle">
+        <span class="shift-pulse-dot"></span>
+        <span id="topbar-shift-text" class="topbar-shift-text">Смена не начата</span>
+        <button id="btn-topbar-shift-action" class="topbar-shift-btn" title="Начать / завершить смену">▶ Старт</button>
       </div>
 
+      <!-- Sync Status -->
+      <div class="topbar-sync-box" id="topbar-sync-status" title="Статус синхронизации">
+        <span class="sync-dot"></span>
+        <span id="topbar-sync-time">Синхронизировано</span>
+      </div>
+
+      <!-- Quick FunPay Link -->
+      <a href="https://funpay.com/chat/" target="_blank" class="topbar-link-btn" title="Открыть чат FunPay">
+        <span class="icon">💬</span> Чат FunPay
+      </a>
+    </div>
+  </header>
+
+  <div class="layout-container">
+    <!-- Slim Sidebar Navigation -->
+    <aside class="sidebar">
       <nav class="nav-menu">
+        <div class="nav-group-label">АНАЛИТИКА & УЧЁТ</div>
         <button class="nav-item active" data-tab="dashboard">
-          <span class="nav-icon">📊</span> Дашборд & Статистика
+          <svg class="nav-svg" viewBox="0 0 20 20" fill="currentColor">
+            <path d="M2 10a8 8 0 018-8v8h8a8 8 0 11-16 0z" />
+            <path d="M12 2.252A8.014 8.014 0 0117.748 8H12V2.252z" />
+          </svg>
+          <span class="nav-text">Обзор & Статистика</span>
         </button>
         <button class="nav-item" data-tab="shifts">
-          <span class="nav-icon">⏱️</span> История смен
+          <svg class="nav-svg" viewBox="0 0 20 20" fill="currentColor">
+            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clip-rule="evenodd" />
+          </svg>
+          <span class="nav-text">История смен</span>
+          <span id="nav-badge-shift-live" class="nav-counter-pill pulse" style="display:none;">LIVE</span>
         </button>
         <button class="nav-item" data-tab="orders">
-          <span class="nav-icon">📦</span> Заказы
+          <svg class="nav-svg" viewBox="0 0 20 20" fill="currentColor">
+            <path fill-rule="evenodd" d="M4 4a2 2 0 012-2h8a2 2 0 012 2v12a1 1 0 110 2h-3a1 1 0 01-1-1v-2a1 1 0 00-1-1H9a1 1 0 00-1 1v2a1 1 0 01-1 1H4a1 1 0 110-2V4zm3 1h2v2H7V5zm2 4H7v2h2V9zm2-4h2v2h-2V5zm2 4h-2v2h2V9z" clip-rule="evenodd" />
+          </svg>
+          <span class="nav-text">Заказы</span>
+          <span id="nav-orders-count" class="nav-counter-pill">0</span>
         </button>
         <button class="nav-item" data-tab="clients">
-          <span class="nav-icon">👥</span> Клиенты
+          <svg class="nav-svg" viewBox="0 0 20 20" fill="currentColor">
+            <path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z" />
+          </svg>
+          <span class="nav-text">CRM Клиенты</span>
         </button>
+
+        <div class="nav-group-label" style="margin-top: 16px;">ИНСТРУМЕНТЫ</div>
         <button class="nav-item" data-tab="templates">
-          <span class="nav-icon">💬</span> Шаблоны
+          <svg class="nav-svg" viewBox="0 0 20 20" fill="currentColor">
+            <path fill-rule="evenodd" d="M18 10c0 3.866-3.582 7-8 7a8.841 8.841 0 01-4.083-.98L2 17l1.338-3.123C2.493 12.767 2 11.434 2 10c0-3.866 3.582-7 8-7s8 3.134 8 7zM7 9H5v2h2V9zm8 0h-2v2h2V9zM9 9h2v2H9V9z" clip-rule="evenodd" />
+          </svg>
+          <span class="nav-text">Шаблоны</span>
         </button>
         <button class="nav-item" data-tab="hotkeys">
-          <span class="nav-icon">⌨️</span> Хоткеи
+          <svg class="nav-svg" viewBox="0 0 20 20" fill="currentColor">
+            <path fill-rule="evenodd" d="M3 5a2 2 0 012-2h10a2 2 0 012 2v10a2 2 0 01-2 2H5a2 2 0 01-2-2V5zm3 1h2v2H6V6zm4 0h2v2h-2V6zm4 0h2v2h-2V6zm-8 4h2v2H6v-2zm4 0h2v2h-2v-2zm4 0h2v2h-2v-2zm-8 4h8v2H6v-2z" clip-rule="evenodd" />
+          </svg>
+          <span class="nav-text">Хоткеи</span>
         </button>
         <button class="nav-item" data-tab="profiles">
-          <span class="nav-icon">🎮</span> Профили
+          <svg class="nav-svg" viewBox="0 0 20 20" fill="currentColor">
+            <path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v3h8v-3zM6 8a2 2 0 11-4 0 2 2 0 014 0zM16 18v-3a5.972 5.972 0 00-.75-2.906A3.005 3.005 0 0119 15v3h-3zM4.75 12.094A5.973 5.973 0 004 15v3H1v-3a3 3 0 013.75-2.906z" />
+          </svg>
+          <span class="nav-text">Профили</span>
         </button>
+
+        <div class="nav-group-label" style="margin-top: 16px;">НАСТРОЙКИ</div>
         <button class="nav-item" data-tab="api">
-          <span class="nav-icon">🔑</span> FunPay API
+          <svg class="nav-svg" viewBox="0 0 20 20" fill="currentColor">
+            <path fill-rule="evenodd" d="M18 8a6 6 0 01-7.743 5.743L10 14l-1 1-1 1H6v2H2v-4l4.257-4.257A6 6 0 1118 8zm-6-4a1 1 0 100 2 2 2 0 012 2 1 1 0 102 0 4 4 0 00-4-4z" clip-rule="evenodd" />
+          </svg>
+          <span class="nav-text">FunPay API</span>
         </button>
         <button class="nav-item" data-tab="general">
-          <span class="nav-icon">⚙️</span> Общие
+          <svg class="nav-svg" viewBox="0 0 20 20" fill="currentColor">
+            <path fill-rule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clip-rule="evenodd" />
+          </svg>
+          <span class="nav-text">Общие</span>
         </button>
         <button class="nav-item" data-tab="backup">
-          <span class="nav-icon">💾</span> Импорт / Экспорт
+          <svg class="nav-svg" viewBox="0 0 20 20" fill="currentColor">
+            <path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd" />
+          </svg>
+          <span class="nav-text">Резервные копии</span>
         </button>
       </nav>
 
-      <div class="sidebar-footer">
-        <div id="sidebar-sync-status" class="sync-status-box">
-          <span class="sync-dot"></span>
-          <span id="sidebar-sync-text">Синхронизация...</span>
+      <div class="sidebar-user-card">
+        <div class="user-avatar-circle" id="sidebar-user-avatar">FP</div>
+        <div class="user-info-text">
+          <div class="user-name" id="sidebar-username">Загрузка...</div>
+          <div class="user-balance" id="sidebar-sync-text">Синхронизация...</div>
         </div>
       </div>
     </aside>
 
-    <!-- Main Content Area -->
+    <!-- Main Content Canvas -->
     <main class="main-content">
 
       <!-- ================= 1. DASHBOARD & STATS ================= -->
       <section id="tab-dashboard" class="tab-pane active">
-        <div class="page-header">
+        <!-- Dashboard Top Header Bar -->
+        <div class="section-action-header">
           <div>
-            <h1 class="page-title">Финансовая статистика & Дашборд</h1>
-            <p class="page-subtitle">Локальный расчет оборота, возвратов и вашей доли на FunPay с полной историей продаж</p>
+            <h1 class="page-headline">Обзор & Финансовая Аналитика</h1>
+            <p class="page-subline">Центр мониторинга выручки, эффективности сменщиков и конверсии сделок на FunPay</p>
           </div>
-          <div class="header-actions">
-            <button id="btn-fetch-all-history" class="btn btn-secondary" title="Загрузить всю доступную историю продаж через пагинацию">
-              <span class="icon">📥</span> Загрузить всю историю
+          <div class="header-action-group">
+            <button id="btn-fetch-all-history" class="btn btn-secondary-subtle" title="Загрузить всю историю через пагинацию">
+              <span class="btn-icon">📥</span> Загрузить всю историю
             </button>
-            <button id="btn-dashboard-sync" class="btn btn-primary">
-              <span class="icon">🔄</span> Обновить данные
+            <button id="btn-dashboard-sync" class="btn btn-primary-accent">
+              <span class="btn-icon">🔄</span> Синхронизировать
             </button>
           </div>
         </div>
 
         <!-- Sync Progress Banner -->
-        <div id="sync-progress-banner" class="card sync-progress-card" style="display: none;">
-          <div class="progress-header">
-            <div class="progress-title-group">
-              <span class="progress-spinner">⏳</span>
-              <span id="sync-progress-text" class="progress-title">Загрузка полной истории продаж FunPay...</span>
+        <div id="sync-progress-banner" class="obsidian-card sync-banner" style="display: none;">
+          <div class="sync-banner-row">
+            <div class="sync-banner-info">
+              <div class="sync-spinner"></div>
+              <div>
+                <div class="sync-title" id="sync-progress-text">Загрузка полной истории продаж...</div>
+                <div class="sync-sub" id="sync-progress-sub">Безопасное получение страниц через курсор continue</div>
+              </div>
             </div>
-            <span id="sync-progress-counter" class="badge-status badge-on">0 заказов</span>
+            <div class="sync-counter-badge" id="sync-progress-counter">0 заказов</div>
           </div>
-          <div class="progress-bar-wrap">
-            <div id="sync-progress-bar" class="progress-bar-fill"></div>
-          </div>
-          <div id="sync-progress-sub" class="progress-sub">Идет последовательное получение страниц истории без перегрузки сайта...</div>
-        </div>
-
-        <!-- Active Shift Live Widget on Dashboard -->
-        <div id="dashboard-active-shift" class="card active-shift-dashboard-card" style="display: none;">
-          <div class="dash-shift-left">
-            <div class="dash-shift-badge"><span class="fphk-dot-pulse"></span> Смена активна</div>
-            <div class="dash-shift-operator" id="dash-shift-op">👤 Оператор 1</div>
-            <div class="dash-shift-time" id="dash-shift-start">Начало: --:--:--</div>
-          </div>
-          <div class="dash-shift-center">
-            <div class="dash-shift-timer-label">Длительность смены</div>
-            <div class="dash-shift-timer-val" id="dash-shift-timer">00:00:00</div>
-            <div class="dash-shift-live-earnings" id="dash-shift-earnings">Заказов: 0 • Выручка: 0 ₽</div>
-          </div>
-          <div class="dash-shift-right">
-            <button id="btn-dash-stop-shift" class="btn btn-danger">
-              <span class="icon">🛑</span> Завершить смену
-            </button>
+          <div class="progress-track">
+            <div id="sync-progress-bar" class="progress-fill"></div>
           </div>
         </div>
 
-        <!-- Coverage & Data Span Banner -->
-        <div class="card history-coverage-card" id="history-coverage-card">
-          <div class="coverage-row">
-            <span class="coverage-icon">📊</span>
-            <div class="coverage-info">
-              <span class="coverage-title">Охват базы заказов:</span>
-              <span id="coverage-span-text" class="coverage-text">Загрузка истории...</span>
+        <!-- History Coverage Span Banner -->
+        <div class="obsidian-card coverage-banner" id="history-coverage-card">
+          <div class="coverage-banner-inner">
+            <div class="coverage-left">
+              <span class="coverage-spark">📈</span>
+              <div>
+                <span class="coverage-label">Охват базы заказов:</span>
+                <span id="coverage-span-text" class="coverage-highlight">Загрузка истории...</span>
+              </div>
             </div>
-            <div class="coverage-meta" id="coverage-meta-text">0 заказов в базе</div>
+            <div class="coverage-right" id="coverage-meta-text">0 заказов в базе</div>
           </div>
         </div>
 
-        <!-- Top Overview Cards -->
-        <div class="overview-grid">
-          <!-- Balance Card -->
-          <div class="card stat-card accent-card">
-            <div class="stat-header">
-              <span class="stat-label">Баланс FunPay</span>
-              <span class="stat-badge">Реальные данные</span>
+        <!-- HERO KPI FINANCIAL SHOWCASE -->
+        <div class="hero-kpi-grid">
+          <!-- Main Balance & Turnover Marquee -->
+          <div class="obsidian-card hero-balance-card">
+            <div class="hero-card-header">
+              <div class="hero-title-group">
+                <span class="hero-badge">БАЛАНС FUNPAY</span>
+                <span class="hero-sub" id="stat-balance-user">Сессия активна</span>
+              </div>
+              <div class="currency-chips" id="hero-currency-chips">
+                <button class="currency-chip active" data-curr="₽">₽ RUB</button>
+                <button class="currency-chip" data-curr="$">$ USD</button>
+                <button class="currency-chip" data-curr="€">€ EUR</button>
+              </div>
             </div>
-            <div class="stat-value" id="stat-balance-val">0 ₽</div>
-            <div class="stat-footer" id="stat-balance-user">Пользователь: не авторизован</div>
-          </div>
 
-          <!-- Share Setting Card -->
-          <div class="card stat-card">
-            <div class="stat-header">
-              <span class="stat-label">Моя доля</span>
-              <span class="stat-badge info-badge">Локальный расчет</span>
-            </div>
-            <div class="share-inline-input">
-              <input type="number" id="input-seller-share" min="0" max="100" step="0.5" value="10">
-              <span class="percent-sign">%</span>
-              <button id="btn-save-share" class="btn btn-sm btn-outline">Сохранить</button>
-            </div>
-            <div class="stat-footer">Доля от оборота без возвратов (не является прибылью)</div>
-          </div>
-        </div>
+            <div class="hero-balance-val tabular-nums" id="stat-balance-val">0 ₽</div>
 
-        <!-- Period Statistics Blocks -->
-        <h2 class="section-title">Показатели по периодам (локальное время)</h2>
-        <div class="periods-grid">
-          <!-- Today -->
-          <div class="card period-card">
-            <div class="period-title">Сегодня</div>
-            <div class="period-metrics" id="period-metrics-today">
-              <!-- Populated dynamically with multi-currency & refunds -->
+            <div class="hero-share-control">
+              <div class="share-slider-label">
+                <span>Моя доля от оборота: <strong id="dash-share-percent-display">12%</strong></span>
+                <span class="share-earned-badge" id="dash-hero-share-calc">Чистая доля: 0 ₽</span>
+              </div>
+              <div class="share-slider-row">
+                <input type="range" id="input-seller-share-slider" min="0" max="100" step="0.5" value="12" class="obsidian-slider">
+                <input type="number" id="input-seller-share" min="0" max="100" step="0.5" value="12" class="share-num-input tabular-nums">
+                <button id="btn-save-share" class="btn btn-xs btn-outline">Сохранить</button>
+              </div>
             </div>
           </div>
 
-          <!-- 7 Days -->
-          <div class="card period-card">
-            <div class="period-title">Последние 7 дней</div>
-            <div class="period-metrics" id="period-metrics-7days">
-              <!-- Populated dynamically -->
+          <!-- Quick Delta Performance Metrics -->
+          <div class="hero-metrics-column">
+            <!-- Metric 1: Today Turnover -->
+            <div class="obsidian-card delta-card">
+              <div class="delta-label-row">
+                <span class="delta-name">Выручка сегодня</span>
+                <span class="delta-badge positive" id="dash-today-delta">+100% ▲</span>
+              </div>
+              <div class="delta-value tabular-nums" id="dash-today-turnover-val">0 ₽</div>
+              <div class="delta-sub" id="dash-today-orders-count">0 закрытых заказов</div>
             </div>
-          </div>
 
-          <!-- 30 Days -->
-          <div class="card period-card">
-            <div class="period-title">Последние 30 дней</div>
-            <div class="period-metrics" id="period-metrics-30days">
-              <!-- Populated dynamically -->
+            <!-- Metric 2: 7 Days Turnover & Avg Check -->
+            <div class="obsidian-card delta-card">
+              <div class="delta-label-row">
+                <span class="delta-name">Оборот за 7 дней</span>
+                <span class="delta-badge neutral" id="dash-7d-badge">7 дней</span>
+              </div>
+              <div class="delta-value tabular-nums" id="dash-7d-turnover-val">0 ₽</div>
+              <div class="delta-sub" id="dash-7d-avg-check">Средний чек: 0 ₽</div>
             </div>
-          </div>
 
-          <!-- 90 Days -->
-          <div class="card period-card">
-            <div class="period-title">90 дней</div>
-            <div class="period-metrics" id="period-metrics-90days">
-              <!-- Populated dynamically -->
-            </div>
-          </div>
-
-          <!-- All Time -->
-          <div class="card period-card">
-            <div class="period-title">Все время</div>
-            <div class="period-metrics" id="period-metrics-all">
-              <!-- Populated dynamically -->
+            <!-- Metric 3: Quality & Refunds -->
+            <div class="obsidian-card delta-card">
+              <div class="delta-label-row">
+                <span class="delta-name">Успешность заказов</span>
+                <span class="delta-badge success" id="dash-quality-badge">100%</span>
+              </div>
+              <div class="delta-value tabular-nums" id="dash-closed-rate-val">0 возвр.</div>
+              <div class="delta-sub" id="dash-alltime-summary">Всего заказов: 0</div>
             </div>
           </div>
         </div>
 
-        <!-- Interactive Chart Section -->
-        <h2 class="section-title">График динамики</h2>
-        <div class="card chart-card">
-          <div class="chart-header">
-            <div class="chart-toggles">
-              <button class="btn btn-sm btn-chart-type active" data-type="turnover">Оборот</button>
-              <button class="btn btn-sm btn-chart-type" data-type="orders">Заказы</button>
-              <button class="btn btn-sm btn-chart-type" data-type="share">Моя доля</button>
+        <!-- ADVANCED SALES ANALYTICS CHART SECTION -->
+        <div class="obsidian-card chart-analytics-card">
+          <div class="chart-top-controls">
+            <div class="chart-headline-group">
+              <h2 class="chart-title">Динамика продаж</h2>
+              <span class="chart-subtitle" id="chart-range-summary">Последние 7 дней</span>
             </div>
-            <div class="chart-curr-select-wrapper">
-              <label class="form-hint" style="margin:0 6px 0 0;">Валюта:</label>
-              <select id="chart-currency-select" class="custom-select" style="padding:4px 8px; font-size:12px;">
+
+            <!-- Period Pills Toolbar -->
+            <div class="period-pills-bar">
+              <button class="period-pill active" data-days="7">7 дней</button>
+              <button class="period-pill" data-days="30">30 дней</button>
+              <button class="period-pill" data-days="90">90 дней</button>
+              <button class="period-pill" data-days="180">180 дней</button>
+              <button class="period-pill" data-days="365">365 дней</button>
+              <button class="period-pill" data-days="all">Всё время</button>
+              <button class="period-pill btn-custom-range-toggle" data-days="custom">📅 Свой период</button>
+            </div>
+          </div>
+
+          <!-- Custom Date Range Bar (collapsible) -->
+          <div id="chart-custom-range-bar" class="custom-range-bar" style="display: none;">
+            <div class="range-input-group">
+              <label for="chart-date-start" class="range-label">От:</label>
+              <input type="date" id="chart-date-start" class="range-date-input">
+            </div>
+            <div class="range-input-group">
+              <label for="chart-date-end" class="range-label">До:</label>
+              <input type="date" id="chart-date-end" class="range-date-input">
+            </div>
+            <button id="btn-chart-apply-range" class="btn btn-sm btn-primary-accent">Применить</button>
+            <button id="btn-chart-reset-range" class="btn btn-sm btn-outline">Сбросить</button>
+            <span id="chart-range-error" class="range-error-msg" style="display: none;"></span>
+          </div>
+
+          <!-- Secondary Metric & Granularity Toolbar -->
+          <div class="chart-sub-toolbar">
+            <!-- Metric Selection -->
+            <div class="segmented-control">
+              <button class="seg-btn btn-chart-type active" data-type="turnover">Оборот</button>
+              <button class="seg-btn btn-chart-type" data-type="orders">Заказы</button>
+              <button class="seg-btn btn-chart-type" data-type="share">Моя доля</button>
+            </div>
+
+            <!-- Granularity Selection -->
+            <div class="granularity-toolbar">
+              <span class="tool-label">Группировка:</span>
+              <div class="segmented-control">
+                <button class="seg-btn btn-chart-granularity" data-granularity="hours">Часы</button>
+                <button class="seg-btn btn-chart-granularity active" data-granularity="days">Дни</button>
+                <button class="seg-btn btn-chart-granularity" data-granularity="weeks">Недели</button>
+                <button class="seg-btn btn-chart-granularity" data-granularity="months">Месяцы</button>
+              </div>
+            </div>
+
+            <!-- Currency Selector -->
+            <div class="chart-currency-wrap">
+              <label for="chart-currency-select" class="tool-label">Валюта:</label>
+              <select id="chart-currency-select" class="obsidian-select">
                 <option value="₽">RUB (₽)</option>
                 <option value="$">USD ($)</option>
                 <option value="€">EUR (€)</option>
               </select>
             </div>
-            <div class="period-toggles">
-              <button class="btn btn-sm btn-chart-days active" data-days="7">7 дней</button>
-              <button class="btn btn-sm btn-chart-days" data-days="30">30 дней</button>
-              <button class="btn btn-sm btn-chart-days" data-days="90">90 дней</button>
+          </div>
+
+          <!-- SVG Chart Body -->
+          <div class="chart-wrapper">
+            <div id="chart-container" class="chart-svg-container">
+              <!-- Rendered dynamic SVG -->
+            </div>
+            <!-- Interactive Floating Tooltip -->
+            <div id="chart-tooltip" class="chart-floating-tooltip" style="display: none;">
+              <div class="tt-header" id="tt-date">--</div>
+              <div class="tt-main-val tabular-nums" id="tt-val">--</div>
+              <div class="tt-details">
+                <div class="tt-row"><span>Оборот:</span> <strong id="tt-turnover" class="tabular-nums">0 ₽</strong></div>
+                <div class="tt-row"><span>Доля:</span> <strong id="tt-share" class="tabular-nums">0 ₽</strong></div>
+                <div class="tt-row"><span>Заказов:</span> <strong id="tt-orders" class="tabular-nums">0</strong></div>
+                <div class="tt-row" id="tt-refunds-row" style="display:none; color:#f87171;">
+                  <span>Возвраты:</span> <strong id="tt-refunds">0</strong>
+                </div>
+              </div>
             </div>
           </div>
-          <div class="chart-body" id="chart-container">
-            <!-- Rendered SVG chart -->
+        </div>
+
+        <!-- OPERATIONS TWO-COLUMN SPLIT -->
+        <div class="operations-split-grid">
+          <!-- Left: Recent Orders Stream -->
+          <div class="obsidian-card recent-orders-card">
+            <div class="card-section-header">
+              <div class="title-with-badge">
+                <h3 class="card-title">Лента последних заказов</h3>
+                <span class="badge-count" id="dash-orders-total-badge">0</span>
+              </div>
+              <button class="btn btn-xs btn-outline" id="btn-view-all-orders">Все заказы →</button>
+            </div>
+            <div class="recent-orders-table-wrap">
+              <table class="obsidian-table" id="dash-recent-orders-table">
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>Время</th>
+                    <th>Покупатель</th>
+                    <th>Сумма</th>
+                    <th>Статус</th>
+                  </tr>
+                </thead>
+                <tbody id="dash-recent-orders-body">
+                  <!-- Populated dynamically -->
+                </tbody>
+              </table>
+              <div id="dash-recent-empty" class="empty-placeholder" style="display: none;">
+                Заказов пока нет. Нажмите «Синхронизировать».
+              </div>
+            </div>
           </div>
+
+          <!-- Right: Active Shift & Operator Performance -->
+          <div class="operations-right-column">
+            <!-- Active Shift Live Card on Dashboard -->
+            <div id="dashboard-active-shift" class="obsidian-card active-shift-live-card" style="display: none;">
+              <div class="live-shift-top">
+                <span class="live-badge"><span class="fphk-dot-pulse"></span> Смена в процессе</span>
+                <span class="live-op-name" id="dash-shift-op">👤 Оператор</span>
+              </div>
+              <div class="live-timer-center">
+                <div class="live-timer-label">ВРЕМЯ НА СМЕНЕ</div>
+                <div class="live-timer-digits tabular-nums" id="dash-shift-timer">00:00:00</div>
+                <div class="live-shift-sub" id="dash-shift-start">Начало: --:--:--</div>
+              </div>
+              <div class="live-earnings-bar">
+                <div class="live-earnings-text tabular-nums" id="dash-shift-earnings">Заказов: 0 • Выручка: 0 ₽</div>
+                <button id="btn-dash-stop-shift" class="btn btn-danger-glow">
+                  <span class="btn-icon">🛑</span> Завершить
+                </button>
+              </div>
+            </div>
+
+            <!-- Operator Performance Leaderboard -->
+            <div class="obsidian-card leaderboard-card">
+              <div class="card-section-header">
+                <h3 class="card-title">Вклад сменщиков</h3>
+                <span class="sub-caption">За последние 30 дней</span>
+              </div>
+              <div class="leaderboard-list" id="dash-leaderboard-list">
+                <!-- Dynamically populated -->
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Hidden legacy period blocks (for backward compatibility) -->
+        <div style="display: none;">
+          <div id="period-metrics-today"></div>
+          <div id="period-metrics-7days"></div>
+          <div id="period-metrics-30days"></div>
+          <div id="period-metrics-90days"></div>
+          <div id="period-metrics-all"></div>
         </div>
       </section>
 
       <!-- ================= 2. SHIFTS HISTORY ================= -->
       <section id="tab-shifts" class="tab-pane">
-        <div class="page-header">
+        <div class="section-action-header">
           <div>
-            <h1 class="page-title">История рабочих смен</h1>
-            <p class="page-subtitle">Учёт времени сотрудников, выручки и доли за каждую смену с раздельными валютами</p>
+            <h1 class="page-headline">История рабочих смен</h1>
+            <p class="page-subline">Детальный учёт отработанных смен, закрытых заказов и распределения выручки между сотрудниками</p>
           </div>
-          <div class="header-actions">
-            <button id="btn-add-shift-manual" class="btn btn-primary">
-              <span class="icon">+</span> Добавить смену
+          <div class="header-action-group">
+            <button id="btn-add-shift-manual" class="btn btn-primary-accent">
+              <span class="btn-icon">+</span> Добавить смену
             </button>
-            <button id="btn-recalculate-shifts" class="btn btn-outline" title="Пересчитать заработок смен по актуальной базе заказов">
-              <span class="icon">🔄</span> Пересчитать выручку
+            <button id="btn-recalculate-shifts" class="btn btn-secondary-subtle" title="Пересчитать заработок по актуальной базе заказов">
+              <span class="btn-icon">🔄</span> Пересчитать выручку
             </button>
-            <button id="btn-export-shifts-csv" class="btn btn-outline" title="Скачать историю смен в формате CSV для Excel">
-              <span class="icon">📥</span> Экспорт в CSV
+            <button id="btn-export-shifts-csv" class="btn btn-secondary-subtle" title="Скачать историю в CSV">
+              <span class="btn-icon">📥</span> Экспорт CSV
             </button>
           </div>
         </div>
 
-        <!-- Shift Overview Summary Cards -->
-        <div class="overview-grid" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); margin-bottom: 20px;">
-          <div class="card stat-card">
-            <div class="stat-header">
-              <span class="stat-label">Отработано времени</span>
-              <span class="stat-badge info-badge" id="shifts-total-count-badge">0 смен</span>
-            </div>
-            <div class="stat-value" id="shifts-total-hours-val">0 ч 0 мин</div>
-            <div class="stat-footer" id="shifts-avg-duration-val">Средняя смена: 0 ч</div>
+        <!-- Active Shift Distinctive Banner (on Shifts tab) -->
+        <div id="shifts-active-banner" class="obsidian-card shifts-active-banner" style="display: none;">
+          <div class="active-banner-left">
+            <div class="active-badge"><span class="fphk-dot-pulse"></span> ТЕКУЩАЯ СМЕНА</div>
+            <div class="active-op-title" id="shifts-active-op">👤 Оператор 1</div>
+            <div class="active-start-sub" id="shifts-active-start">Старт: --:--:--</div>
           </div>
-
-          <div class="card stat-card accent-card">
-            <div class="stat-header">
-              <span class="stat-label">Общий оборот за смены</span>
-              <span class="stat-badge" id="shifts-total-orders-badge">0 заказов</span>
-            </div>
-            <div class="stat-value" id="shifts-total-turnover-val">0 ₽</div>
-            <div class="stat-footer" id="shifts-turnover-multicurrency">Без возвратов</div>
+          <div class="active-banner-mid">
+            <div class="banner-timer-val tabular-nums" id="shifts-active-timer">00:00:00</div>
+            <div class="banner-earnings-val tabular-nums" id="shifts-active-earnings">0 заказов • 0 ₽</div>
           </div>
-
-          <div class="card stat-card">
-            <div class="stat-header">
-              <span class="stat-label">Заработанная доля</span>
-              <span class="stat-badge info-badge">Моя доля</span>
-            </div>
-            <div class="stat-value" id="shifts-total-share-val" style="color: #34d399;">0 ₽</div>
-            <div class="stat-footer">Рассчитано по ставке смены</div>
+          <div class="active-banner-right">
+            <button id="btn-shifts-stop-active" class="btn btn-danger-glow">🛑 Завершить смену</button>
           </div>
         </div>
 
-        <!-- Filters Bar -->
-        <div class="card table-filters" style="margin-bottom: 16px;">
-          <div class="filter-group" style="display: flex; gap: 12px; flex-wrap: wrap; align-items: center;">
-            <div style="display: flex; align-items: center; gap: 6px;">
-              <label class="filter-label" for="shifts-filter-operator">Сменщик:</label>
-              <select id="shifts-filter-operator" class="custom-select select-inline">
+        <!-- Summary Metric Cards -->
+        <div class="kpi-three-grid">
+          <div class="obsidian-card kpi-card">
+            <div class="kpi-header">
+              <span class="kpi-title">Отработано времени</span>
+              <span class="kpi-pill" id="shifts-total-count-badge">0 смен</span>
+            </div>
+            <div class="kpi-number tabular-nums" id="shifts-total-hours-val">0 ч 0 мин</div>
+            <div class="kpi-footer" id="shifts-avg-duration-val">Средняя смена: 0 ч</div>
+          </div>
+
+          <div class="obsidian-card kpi-card accent-card">
+            <div class="kpi-header">
+              <span class="kpi-title">Оборот за смены</span>
+              <span class="kpi-pill emerald" id="shifts-total-orders-badge">0 заказов</span>
+            </div>
+            <div class="kpi-number tabular-nums" id="shifts-total-turnover-val">0 ₽</div>
+            <div class="kpi-footer" id="shifts-turnover-multicurrency">Без возвратов</div>
+          </div>
+
+          <div class="obsidian-card kpi-card">
+            <div class="kpi-header">
+              <span class="kpi-title">Заработанная доля</span>
+              <span class="kpi-pill">Моя доля</span>
+            </div>
+            <div class="kpi-number emerald-text tabular-nums" id="shifts-total-share-val">0 ₽</div>
+            <div class="kpi-footer">По индивидуальной ставке</div>
+          </div>
+        </div>
+
+        <!-- Filter Bar -->
+        <div class="obsidian-card filter-toolbar-card">
+          <div class="filter-controls-row">
+            <div class="filter-field">
+              <label for="shifts-filter-operator" class="tool-label">Сменщик:</label>
+              <select id="shifts-filter-operator" class="obsidian-select">
                 <option value="all">Все сменщики</option>
               </select>
             </div>
-
-            <div style="display: flex; align-items: center; gap: 6px;">
-              <label class="filter-label" for="shifts-filter-period">Период:</label>
-              <select id="shifts-filter-period" class="custom-select select-inline">
+            <div class="filter-field">
+              <label for="shifts-filter-period" class="tool-label">Период:</label>
+              <select id="shifts-filter-period" class="obsidian-select">
                 <option value="all">Все время</option>
                 <option value="today">Сегодня</option>
                 <option value="7days">Последние 7 дней</option>
@@ -299,8 +495,8 @@
         </div>
 
         <!-- Shifts Table -->
-        <div class="card table-card">
-          <table class="data-table">
+        <div class="obsidian-card table-wrapper-card">
+          <table class="obsidian-table" id="shifts-data-table">
             <thead>
               <tr>
                 <th>Дата</th>
@@ -311,48 +507,51 @@
                 <th>Оборот</th>
                 <th>Доля</th>
                 <th>Заметка</th>
-                <th>Действия</th>
+                <th style="text-align: right;">Действия</th>
               </tr>
             </thead>
             <tbody id="shifts-table-body">
               <!-- Dynamically populated -->
             </tbody>
           </table>
-          <div id="shifts-empty" class="empty-state" style="display: none; padding: 24px; text-align: center;">
-            <span>История смен пуста. Начните смену в расширении или добавьте вручную.</span>
+          <div id="shifts-empty" class="empty-placeholder" style="display: none;">
+            История смен пуста. Начните смену в расширении или добавьте вручную.
           </div>
         </div>
       </section>
 
       <!-- ================= 3. ORDERS ================= -->
       <section id="tab-orders" class="tab-pane">
-        <div class="page-header">
+        <div class="section-action-header">
           <div>
-            <h1 class="page-title">Заказы</h1>
-            <p class="page-subtitle">История подтвержденных заказов с разделением статусов и возвратов</p>
+            <h1 class="page-headline">История заказов</h1>
+            <p class="page-subline">Полная база заказов продавца FunPay с фильтрацией по статусам и возвратам</p>
           </div>
         </div>
 
-        <div class="card table-filters">
-          <div class="filter-group">
-            <input type="text" id="orders-search" class="input-text" placeholder="Поиск по ID, покупателю или описанию...">
-            <div class="filter-buttons">
-              <button class="btn btn-sm btn-filter active" data-period="all">Все</button>
-              <button class="btn btn-sm btn-filter" data-period="today">Сегодня</button>
-              <button class="btn btn-sm btn-filter" data-period="7days">7 дней</button>
-              <button class="btn btn-sm btn-filter" data-period="30days">30 дней</button>
-              <button class="btn btn-sm btn-filter" data-period="90days">90 дней</button>
+        <div class="obsidian-card filter-toolbar-card">
+          <div class="orders-filter-row">
+            <div class="search-input-wrap">
+              <span class="input-icon">🔍</span>
+              <input type="text" id="orders-search" class="obsidian-input" placeholder="Поиск по номеру заказа, покупателю или названию лота...">
+            </div>
+            <div class="segmented-control">
+              <button class="seg-btn btn-filter active" data-period="all">Все</button>
+              <button class="seg-btn btn-filter" data-period="today">Сегодня</button>
+              <button class="seg-btn btn-filter" data-period="7days">7 дней</button>
+              <button class="seg-btn btn-filter" data-period="30days">30 дней</button>
+              <button class="seg-btn btn-filter" data-period="90days">90 дней</button>
             </div>
           </div>
         </div>
 
-        <div class="card table-card">
-          <table class="data-table">
+        <div class="obsidian-card table-wrapper-card">
+          <table class="obsidian-table">
             <thead>
               <tr>
-                <th>ID</th>
-                <th>Дата</th>
-                <th>Клиент (Buyer ID)</th>
+                <th>ID Заказа</th>
+                <th>Дата / Время</th>
+                <th>Покупатель</th>
                 <th>Товар / Описание</th>
                 <th>Сумма</th>
                 <th>Статус</th>
@@ -362,345 +561,254 @@
               <!-- Dynamically populated -->
             </tbody>
           </table>
-          <div id="orders-empty" class="empty-state" style="display: none; padding: 20px; text-align: center;">
-            <span>Заказы не найдены. Выполните синхронизацию на Дашборде.</span>
+          <div id="orders-empty" class="empty-placeholder" style="display: none;">
+            Заказы не найдены. Выполните синхронизацию на Дашборде.
           </div>
         </div>
       </section>
 
-      <!-- ================= 3. CLIENTS ================= -->
+      <!-- ================= 4. CRM CLIENTS ================= -->
       <section id="tab-clients" class="tab-pane">
-        <div class="page-header">
+        <div class="section-action-header">
           <div>
-            <h1 class="page-title">Клиенты</h1>
-            <p class="page-subtitle">База покупателей с группировкой строго по Buyer ID</p>
+            <h1 class="page-headline">CRM Покупатели</h1>
+            <p class="page-subline">База постоянных клиентов с группировкой строго по уникальному Buyer ID и детальной историей покупок</p>
           </div>
         </div>
 
-        <div class="card table-filters">
-          <input type="text" id="clients-search" class="input-text" placeholder="Поиск клиента по нику или Buyer ID...">
+        <div class="obsidian-card filter-toolbar-card">
+          <div class="crm-filter-row">
+            <div class="search-input-wrap">
+              <span class="input-icon">🔍</span>
+              <input type="text" id="clients-search" class="obsidian-input" placeholder="Поиск клиента по нику или Buyer ID...">
+            </div>
+            <div class="crm-sort-wrap">
+              <label for="clients-sort-select" class="tool-label">Сортировка:</label>
+              <select id="clients-sort-select" class="obsidian-select">
+                <option value="turnover">По сумме покупок</option>
+                <option value="orders">По количеству заказов</option>
+                <option value="recent">По дате последнего заказа</option>
+                <option value="name">По имени</option>
+              </select>
+            </div>
+          </div>
         </div>
 
-        <div class="card table-card">
-          <table class="data-table">
+        <div class="obsidian-card table-wrapper-card">
+          <table class="obsidian-table">
             <thead>
               <tr>
+                <th>Клиент</th>
                 <th>Buyer ID</th>
-                <th>Отображаемое имя</th>
-                <th>Успешных заказов</th>
+                <th>Статус</th>
+                <th>Заказов</th>
                 <th>Возвратов</th>
-                <th>Сумма покупок по валютам</th>
+                <th>Сумма покупок</th>
                 <th>Последний заказ</th>
-                <th>Действия</th>
+                <th style="text-align: right;">Действия</th>
               </tr>
             </thead>
             <tbody id="clients-table-body">
               <!-- Dynamically populated -->
             </tbody>
           </table>
-          <div id="clients-empty" class="empty-state" style="display: none; padding: 20px; text-align: center;">
-            <span>Клиенты не найдены.</span>
+          <div id="clients-empty" class="empty-placeholder" style="display: none;">
+            Клиенты не найдены.
           </div>
         </div>
       </section>
 
-      <!-- ================= 4. TEMPLATES ================= -->
+      <!-- ================= 5. TEMPLATES ================= -->
       <section id="tab-templates" class="tab-pane">
-        <div class="page-header">
+        <div class="section-action-header">
           <div>
-            <h1 class="page-title">Шаблоны быстрых сообщений</h1>
-            <p class="page-subtitle">Создавайте и настраивайте шаблоны ответов с умными переменными</p>
+            <h1 class="page-headline">Шаблоны быстрых сообщений</h1>
+            <p class="page-subline">Шаблоны ответов покупателям с умными переменными ({buyer}, {order_id}, {login}, {password})</p>
           </div>
-          <div class="header-actions">
-            <button id="btn-add-template" class="btn btn-primary">
-              <span class="icon">+</span> Создать шаблон
+          <div class="header-action-group">
+            <button id="btn-add-template" class="btn btn-primary-accent">
+              <span class="btn-icon">+</span> Создать шаблон
             </button>
           </div>
         </div>
 
-        <div class="card table-filters">
-          <label class="filter-label">Фильтр по профилю:</label>
-          <select id="templates-profile-filter" class="custom-select select-inline">
-            <!-- Options populated dynamically -->
-          </select>
-        </div>
-
-        <div class="templates-list" id="templates-list-container">
-          <!-- Populated dynamically -->
-        </div>
-      </section>
-
-      <!-- ================= 5. HOTKEYS ================= -->
-      <section id="tab-hotkeys" class="tab-pane">
-        <div class="page-header">
-          <div>
-            <h1 class="page-title">Горячие клавиши</h1>
-            <p class="page-subtitle">Назначение клавиш быстрого ответа (F1-F12) для выбранного профиля</p>
-          </div>
-        </div>
-
-        <div class="card info-box">
-          <span class="info-icon">💡</span>
-          <div>
-            <strong>Как работают хоткеи:</strong> Горячие клавиши перехватываются исключительно на вкладках FunPay при открытом чате.
-            При нажатии клавиши (например, <code>F1</code>) текст вставляется в поле ввода без отправки.
-          </div>
-        </div>
-
-        <div class="card hotkeys-card">
-          <div class="hotkeys-header-row" style="margin-bottom: 14px;">
-            <label class="filter-label" style="margin-right: 8px;">Профиль:</label>
-            <select id="hotkeys-profile-select" class="custom-select select-inline">
+        <div class="obsidian-card filter-toolbar-card">
+          <div class="filter-field">
+            <label for="templates-profile-filter" class="tool-label">Профиль:</label>
+            <select id="templates-profile-filter" class="obsidian-select">
               <!-- Populated dynamically -->
             </select>
           </div>
-          <div class="hotkeys-table-container">
-            <table class="data-table">
-              <thead>
-                <tr>
-                  <th>Клавиша</th>
-                  <th>Название шаблона</th>
-                  <th>Текст</th>
-                  <th>Статус</th>
-                  <th>Действие</th>
-                </tr>
-              </thead>
-              <tbody id="hotkeys-table-body">
-                <!-- Dynamically populated -->
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </section>
-
-      <!-- ================= 6. PROFILES ================= -->
-      <section id="tab-profiles" class="tab-pane">
-        <div class="page-header">
-          <div>
-            <h1 class="page-title">Профили товаров</h1>
-            <p class="page-subtitle">Разделение наборов шаблонов по играм и категориям</p>
-          </div>
-          <div class="header-actions">
-            <button id="btn-add-profile" class="btn btn-primary">
-              <span class="icon">+</span> Добавить профиль
-            </button>
-          </div>
         </div>
 
-        <div class="profiles-grid" id="profiles-grid-container">
+        <div class="templates-grid" id="templates-list-container">
           <!-- Populated dynamically -->
         </div>
       </section>
 
-      <!-- ================= 7. FUNPAY API ================= -->
+      <!-- ================= 6. HOTKEYS ================= -->
+      <section id="tab-hotkeys" class="tab-pane">
+        <div class="section-action-header">
+          <div>
+            <h1 class="page-headline">Горячие клавиши</h1>
+            <p class="page-subline">Привязка функциональных клавиш F1–F12 к шаблонам для работы прямо в чате FunPay</p>
+          </div>
+        </div>
+
+        <div class="obsidian-card hotkeys-info-card">
+          <span class="info-bulb">💡</span>
+          <div>
+            <strong>Как работают хоткеи:</strong> Горячие клавиши перехватываются исключительно на вкладках FunPay при активном поле ввода чата.
+            При нажатии клавиши текст вставляется в поле ввода без отправки.
+          </div>
+        </div>
+
+        <div class="obsidian-card hotkeys-container-card">
+          <div class="hotkeys-header-row">
+            <span class="tool-label">Профиль хоткеев:</span>
+            <select id="hotkeys-profile-filter" class="obsidian-select">
+              <!-- Populated dynamically -->
+            </select>
+          </div>
+          <div id="hotkeys-list-container" class="hotkeys-keycaps-grid">
+            <!-- Populated dynamically -->
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= 7. PROFILES ================= -->
+      <section id="tab-profiles" class="tab-pane">
+        <div class="section-action-header">
+          <div>
+            <h1 class="page-headline">Игровые профили</h1>
+            <p class="page-subline">Создавайте профили под разные игры (Steam, Fortnite, Genshin) со своими шаблонами и клавишами</p>
+          </div>
+          <div class="header-action-group">
+            <button id="btn-add-profile" class="btn btn-primary-accent">
+              <span class="btn-icon">+</span> Новый профиль
+            </button>
+          </div>
+        </div>
+
+        <div class="profiles-cards-grid" id="profiles-list-container">
+          <!-- Populated dynamically -->
+        </div>
+      </section>
+
+      <!-- ================= 8. API SETTINGS ================= -->
       <section id="tab-api" class="tab-pane">
-        <div class="page-header">
+        <div class="section-action-header">
           <div>
-            <h1 class="page-title">Настройки доступа к FunPay</h1>
-            <p class="page-subtitle">Ручная настройка учетных данных (golden_key)</p>
+            <h1 class="page-headline">FunPay API</h1>
+            <p class="page-subline">Настройка локального подключения через официальный сессионный токен golden_key</p>
           </div>
         </div>
 
-        <div class="card api-card">
-          <h2 class="card-section-title">Сессионный токен golden_key</h2>
-          <p class="api-desc">
-            FunPay не имеет публичного REST API. Интеграция работает через веб-парсинг страниц при наличии сессии в браузере.<br>
-            В расширении <strong>отключено любое изменение cookies браузера</strong> ради защиты вашей сессии от разлогина. Для проверки и синхронизации держите сайт FunPay открытым в любой вкладке браузера.
-          </p>
-
-          <div class="form-group">
-            <label class="form-label" for="api-golden-key">Токен авторизации (golden_key):</label>
-            <div class="key-input-row">
-              <input type="password" id="api-golden-key" class="input-text" placeholder="Введите ваш golden_key...">
-              <button id="btn-toggle-key-visibility" class="btn btn-outline" title="Показать/скрыть">👁️</button>
+        <div class="obsidian-card settings-card">
+          <div class="setting-field">
+            <label for="golden-key-input" class="field-label">Сессионный токен FunPay (golden_key)</label>
+            <div class="input-with-action">
+              <input type="password" id="golden-key-input" class="obsidian-input" placeholder="Введите ваш golden_key из cookies funpay.com...">
+              <button id="btn-save-key" class="btn btn-primary-accent">Сохранить</button>
+              <button id="btn-test-key" class="btn btn-secondary-subtle">Проверить</button>
             </div>
-            <span class="form-hint">Инструкция: На сайте FunPay нажмите F12 -> Application -> Cookies -> https://funpay.com -> найдите строку golden_key и скопируйте ее значение.</span>
+            <p class="field-hint">Токен сохраняется локально в зашифрованном хранилище браузера и никогда не передаётся на сторонние серверы.</p>
           </div>
 
-          <div class="api-actions">
-            <button id="btn-test-api" class="btn btn-primary">
-              <span class="icon">🔍</span> Проверить подключение
-            </button>
-            <button id="btn-save-api" class="btn btn-outline">
-              <span class="icon">💾</span> Сохранить токен
-            </button>
-            <button id="btn-clear-api" class="btn btn-danger">
-              <span class="icon">🗑️</span> Удалить токен
-            </button>
+          <div class="key-status-box" id="key-status-indicator">
+            <span class="status-dot-lg" id="key-status-dot"></span>
+            <span id="key-status-text">Проверка токена...</span>
           </div>
-
-          <div class="api-status-box" id="api-status-box">
-            <div class="status-indicator" id="api-status-dot"></div>
-            <div class="api-status-text" id="api-status-text">Статус: токен не проверен</div>
-          </div>
-        </div>
-
-        <div class="card api-card" id="card-diagnostics" style="margin-top: 20px;">
-          <h2 class="card-section-title">Диагностический отчёт пагинации FunPay</h2>
-          <p class="api-desc">
-            Технический лог анализа страниц 1, 2, 3, параметров формы пагинации, теста POST vs GET, дедупликации и кеша.
-          </p>
-          <div style="margin-bottom: 12px; display: flex; gap: 10px;">
-            <button id="btn-copy-diag" class="btn btn-outline" style="display: none;">
-              📋 Скопировать отчёт
-            </button>
-          </div>
-          <pre id="diag-report-text" style="background: rgba(0,0,0,0.05); padding: 12px; border-radius: 6px; font-size: 12px; white-space: pre-wrap; word-break: break-all; max-height: 400px; overflow-y: auto; color: inherit;">Отчёт пока не сформирован. Нажмите «Обновить данные» на вкладке «Дашборд & Статистика».</pre>
         </div>
       </section>
 
-      <!-- ================= 8. GENERAL SETTINGS ================= -->
+      <!-- ================= 9. GENERAL SETTINGS ================= -->
       <section id="tab-general" class="tab-pane">
-        <div class="page-header">
+        <div class="section-action-header">
           <div>
-            <h1 class="page-title">Общие настройки</h1>
-            <p class="page-subtitle">Параметры работы горячих клавиш, интерфейса и отладки</p>
+            <h1 class="page-headline">Общие настройки</h1>
+            <p class="page-subline">Параметры оповещений, звуков, контроля переработок и списка сменщиков</p>
+          </div>
+          <div class="header-action-group">
+            <button id="btn-save-settings" class="btn btn-primary-accent">Сохранить изменения</button>
           </div>
         </div>
 
-        <div class="card settings-card">
-          <div class="setting-row">
-            <div class="setting-info">
-              <div class="setting-title">Горячие клавиши</div>
-              <div class="setting-desc">Включить обработку F1-F12 на страницах FunPay</div>
+        <div class="obsidian-card settings-card">
+          <div class="settings-rows-list">
+            <div class="setting-row-toggle">
+              <div>
+                <div class="setting-title">Горячие клавиши (F1–F12)</div>
+                <div class="setting-sub">Включить глобальный перехват в чате FunPay</div>
+              </div>
+              <input type="checkbox" id="setting-hotkeys" class="obsidian-toggle" checked>
             </div>
-            <label class="switch">
-              <input type="checkbox" id="setting-hotkeys-enabled">
-              <span class="slider"></span>
-            </label>
-          </div>
 
-          <div class="setting-row">
-            <div class="setting-info">
-              <div class="setting-title">Быстрая панель в чате FunPay</div>
-              <div class="setting-desc">Отображать панель шаблонов рядом с полем сообщения</div>
+            <div class="setting-row-toggle">
+              <div>
+                <div class="setting-title">Звуковые оповещения</div>
+                <div class="setting-sub">Звуковой сигнал при вставке шаблона</div>
+              </div>
+              <input type="checkbox" id="setting-sound" class="obsidian-toggle" checked>
             </div>
-            <label class="switch">
-              <input type="checkbox" id="setting-panel-visible">
-              <span class="slider"></span>
-            </label>
-          </div>
 
-          <div class="setting-row">
-            <div class="setting-info">
-              <div class="setting-title">Прикреплять панель над чатом</div>
-              <div class="setting-desc">Закреплять над формой ввода вместо плавающей кнопки</div>
+            <div class="setting-row-toggle">
+              <div>
+                <div class="setting-title">Push-уведомления Chrome</div>
+                <div class="setting-sub">Напоминания о незакрытых сменах и предупреждения о превышении времени</div>
+              </div>
+              <input type="checkbox" id="setting-notifications" class="obsidian-toggle" checked>
             </div>
-            <label class="switch">
-              <input type="checkbox" id="setting-panel-docked">
-              <span class="slider"></span>
-            </label>
-          </div>
 
-          <div class="setting-row">
-            <div class="setting-info">
-              <div class="setting-title">Плавающий виджет смены на FunPay</div>
-              <div class="setting-desc">Отображать компактный виджет с таймером, оператором и кнопкой завершения на страницах FunPay</div>
+            <div class="setting-row-input">
+              <div>
+                <div class="setting-title">Предупреждение о переработке (часов)</div>
+                <div class="setting-sub">Уведомлять, если смена длится дольше указанного порога</div>
+              </div>
+              <input type="number" id="setting-shift-alert-hours" class="obsidian-input input-narrow" min="1" max="24" value="8">
             </div>
-            <label class="switch">
-              <input type="checkbox" id="setting-shift-widget-visible">
-              <span class="slider"></span>
-            </label>
-          </div>
 
-          <div class="setting-row">
-            <div class="setting-info">
-              <div class="setting-title">Защита от забытых смен (порог уведомления)</div>
-              <div class="setting-desc">Системное уведомление браузера при превышении времени смены</div>
+            <div class="setting-row-input">
+              <div>
+                <div class="setting-title">Список сменщиков (по одному на строку)</div>
+                <div class="setting-sub">Быстрые подсказки имён при открытии смены</div>
+              </div>
+              <textarea id="setting-operators-list" class="obsidian-textarea" rows="3" placeholder="Алексей (Owner)&#10;Иван (Ночной)&#10;Дмитрий (Дневной)"></textarea>
             </div>
-            <select id="setting-shift-overrun-hours" class="custom-select select-inline">
-              <option value="6">Через 6 часов</option>
-              <option value="8" selected>Через 8 часов (рекомендуется)</option>
-              <option value="10">Через 10 часов</option>
-              <option value="12">Через 12 часов</option>
-              <option value="0">Отключено</option>
-            </select>
-          </div>
 
-          <div class="setting-row">
-            <div class="setting-info">
-              <div class="setting-title">Тема оформления</div>
-              <div class="setting-desc">Цветовая тема интерфейса</div>
+            <div class="setting-row-input" style="display: none;">
+              <select id="setting-theme">
+                <option value="dark">Тёмная</option>
+              </select>
             </div>
-            <select id="setting-theme" class="custom-select select-inline">
-              <option value="system">Системная</option>
-              <option value="dark">Тёмная</option>
-              <option value="light">Светлая</option>
-            </select>
-          </div>
-
-          <div class="setting-row">
-            <div class="setting-info">
-              <div class="setting-title">Интервал автосинхронизации (минуты)</div>
-              <div class="setting-desc">Периодичность фонового обновления (не чаще 1 раза в 5 мин)</div>
-            </div>
-            <select id="setting-sync-interval" class="custom-select select-inline">
-              <option value="5">Каждые 5 минут</option>
-              <option value="15">Каждые 15 минут</option>
-              <option value="30">Каждые 30 минут</option>
-              <option value="60">Каждый час</option>
-              <option value="0">Отключено</option>
-            </select>
-          </div>
-
-          <div class="setting-row">
-            <div class="setting-info">
-              <div class="setting-title">Developer Mode (Режим разработчика)</div>
-              <div class="setting-desc">Подробные логи в консоли браузера (без вывода токенов)</div>
-            </div>
-            <label class="switch">
-              <input type="checkbox" id="setting-dev-mode">
-              <span class="slider"></span>
-            </label>
           </div>
         </div>
       </section>
 
-      <!-- ================= 9. BACKUP & EXPORT ================= -->
+      <!-- ================= 10. BACKUP ================= -->
       <section id="tab-backup" class="tab-pane">
-        <div class="page-header">
+        <div class="section-action-header">
           <div>
-            <h1 class="page-title">Импорт и экспорт</h1>
-            <p class="page-subtitle">Резервное копирование и перенос шаблонов и профилей</p>
+            <h1 class="page-headline">Резервное копирование</h1>
+            <p class="page-subline">Экспорт и импорт всех шаблонов, профилей, истории смен и настроек в файл JSON</p>
           </div>
         </div>
 
-        <div class="card backup-card">
-          <div class="backup-block">
-            <h2 class="card-section-title">Экспорт настроек</h2>
-            <p class="backup-desc">
-              Сохранение профилей и шаблонов в файл <code>fanpay-hotkeys-backup.json</code>.<br>
-              Токены авторизации golden_key намеренно исключены из экспорта в целях безопасности.
-            </p>
-            <button id="btn-export-backup" class="btn btn-primary">
-              <span class="icon">📥</span> Скачать резервную копию
-            </button>
-          </div>
-
-          <hr class="divider">
-
-          <div class="backup-block">
-            <h2 class="card-section-title">Импорт настроек</h2>
-            <p class="backup-desc">
-              Загрузите JSON-файл резервной копии. Вы сможете выбрать объединение или перезапись.
-            </p>
-            <input type="file" id="input-backup-file" accept=".json" style="display: none;">
-            <div class="import-actions">
-              <button id="btn-import-browse" class="btn btn-outline">
-                <span class="icon">📂</span> Выбрать файл бэкапа
-              </button>
-              <span id="import-file-name" class="import-filename">Файл не выбран</span>
+        <div class="obsidian-card settings-card">
+          <div class="backup-actions-grid">
+            <div class="backup-action-box">
+              <div class="box-icon">💾</div>
+              <div class="box-title">Создать резервную копию</div>
+              <div class="box-sub">Сохранить все профили, смены и шаблоны в файл JSON на диск</div>
+              <button id="btn-export-backup" class="btn btn-primary-accent" style="margin-top: 12px;">Экспорт в JSON</button>
             </div>
-            <div id="import-options-box" class="import-options" style="display: none; margin-top: 14px;">
-              <label class="radio-label" style="display:block; margin-bottom: 8px;">
-                <input type="radio" name="import-mode" value="merge" checked>
-                <span>Объединить (добавить отсутствующие)</span>
-              </label>
-              <label class="radio-label" style="display:block; margin-bottom: 12px;">
-                <input type="radio" name="import-mode" value="overwrite">
-                <span>Полностью перезаписать существующие шаблоны и профили</span>
-              </label>
-              <button id="btn-apply-import" class="btn btn-primary">Применить импорт</button>
+
+            <div class="backup-action-box">
+              <div class="box-icon">📥</div>
+              <div class="box-title">Восстановить из файла</div>
+              <div class="box-sub">Загрузить данные из ранее сохранённого файла JSON</div>
+              <input type="file" id="input-import-file" accept=".json" style="display: none;">
+              <button id="btn-import-backup" class="btn btn-secondary-subtle" style="margin-top: 12px;">Выбрать файл...</button>
             </div>
           </div>
         </div>
@@ -709,131 +817,75 @@
     </main>
   </div>
 
-  <!-- Modal for Creating/Editing Template -->
-  <div id="modal-template" class="modal-overlay" style="display: none;">
-    <div class="modal-card">
-      <div class="modal-header">
-        <h3 class="modal-title" id="modal-template-title">Редактировать шаблон</h3>
-        <button class="modal-close" id="modal-template-close">✕</button>
+  <!-- Client Purchase History Drawer (Flyout Panel) -->
+  <div id="client-orders-drawer" class="drawer-overlay" style="display: none;">
+    <div class="drawer-panel">
+      <div class="drawer-header">
+        <div>
+          <div class="drawer-title" id="client-drawer-title">Покупатель</div>
+          <div class="drawer-subtitle" id="client-drawer-sub">История покупок</div>
+        </div>
+        <button id="client-drawer-close" class="drawer-close-btn">&times;</button>
       </div>
-      <div class="modal-body">
-        <input type="hidden" id="tmpl-id">
-        <div class="form-group">
-          <label class="form-label">Профиль:</label>
-          <select id="tmpl-profile" class="custom-select">
+      <div class="drawer-body">
+        <div class="drawer-stats-summary" id="client-drawer-summary">
+          <!-- Populated dynamically -->
+        </div>
+        <table class="obsidian-table" style="margin-top: 12px;">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Дата</th>
+              <th>Товар</th>
+              <th>Сумма</th>
+              <th>Статус</th>
+            </tr>
+          </thead>
+          <tbody id="client-drawer-orders">
             <!-- Populated dynamically -->
-          </select>
-        </div>
-        <div class="form-group">
-          <label class="form-label">Название шаблона:</label>
-          <input type="text" id="tmpl-name" class="input-text" placeholder="Например: Приветствие">
-        </div>
-        <div class="form-group">
-          <label class="form-label">Горячая клавиша:</label>
-          <div class="key-recorder-group">
-            <input type="text" id="tmpl-hotkey" class="input-text" placeholder="Например: F1">
-            <button id="btn-record-key" class="btn btn-outline btn-sm">Захват клавиши</button>
-          </div>
-        </div>
-        <div class="form-group">
-          <label class="form-label">Текст сообщения:</label>
-          <div class="vars-toolbar">
-            <span class="vars-title">Вставить переменную:</span>
-            <button type="button" class="btn-var-tag" data-var="{username}">{username}</button>
-            <button type="button" class="btn-var-tag" data-var="{order_id}">{order_id}</button>
-            <button type="button" class="btn-var-tag" data-var="{product}">{product}</button>
-            <button type="button" class="btn-var-tag" data-var="{amount}">{amount}</button>
-            <button type="button" class="btn-var-tag" data-var="{buyer}">{buyer}</button>
-            <button type="button" class="btn-var-tag" data-var="{gamepass}">{gamepass}</button>
-            <button type="button" class="btn-var-tag" data-var="{place}">{place}</button>
-          </div>
-          <textarea id="tmpl-text" class="input-textarea" rows="4" placeholder="Текст сообщения для вставки в чат..."></textarea>
-        </div>
-        <div class="form-group inline-checkbox">
-          <label>
-            <input type="checkbox" id="tmpl-enabled" checked> Шаблон активен
-          </label>
-        </div>
-      </div>
-      <div class="modal-footer">
-        <button id="btn-cancel-template" class="btn btn-outline">Отмена</button>
-        <button id="btn-save-template" class="btn btn-primary">Сохранить</button>
+          </tbody>
+        </table>
       </div>
     </div>
   </div>
 
-  <!-- Modal for Creating/Editing Profile -->
-  <div id="modal-profile" class="modal-overlay" style="display: none;">
-    <div class="modal-card modal-sm">
+  <!-- Shift Edit / Add Modal Dialog -->
+  <div id="shift-modal" class="modal-backdrop" style="display: none;">
+    <div class="modal-window">
       <div class="modal-header">
-        <h3 class="modal-title" id="modal-profile-title">Новый профиль</h3>
-        <button class="modal-close" id="modal-profile-close">✕</button>
+        <h3 class="modal-title" id="shift-modal-title">Редактирование смены</h3>
+        <button id="shift-modal-close" class="modal-close-btn">&times;</button>
       </div>
       <div class="modal-body">
-        <input type="hidden" id="prof-id">
-        <div class="form-group">
-          <label class="form-label">Название профиля:</label>
-          <input type="text" id="prof-name" class="input-text" placeholder="Например: CS2, Telegram...">
+        <input type="hidden" id="modal-shift-id">
+        <div class="modal-field">
+          <label for="modal-shift-operator" class="field-label">Сменщик:</label>
+          <input type="text" id="modal-shift-operator" class="obsidian-input" placeholder="Имя сменщика" list="modal-operators-datalist">
+          <datalist id="modal-operators-datalist"></datalist>
         </div>
-      </div>
-      <div class="modal-footer">
-        <button id="btn-cancel-profile" class="btn btn-outline">Отмена</button>
-        <button id="btn-save-profile" class="btn btn-primary">Сохранить</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Modal for Creating/Editing Shift -->
-  <div id="modal-shift" class="modal-overlay" style="display: none;">
-    <div class="modal-card">
-      <div class="modal-header">
-        <h3 class="modal-title" id="modal-shift-title">Добавить рабочую смену</h3>
-        <button class="modal-close" id="modal-shift-close">✕</button>
-      </div>
-      <div class="modal-body">
-        <input type="hidden" id="shift-modal-id">
-        <div class="form-group">
-          <label class="form-label">Сменщик / Оператор:</label>
-          <input type="text" id="shift-modal-operator" class="input-text" placeholder="Имя сменщика (например: Алексей)" list="operator-modal-suggestions">
-          <datalist id="operator-modal-suggestions"></datalist>
-        </div>
-        <div class="form-group-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
-          <div class="form-group">
-            <label class="form-label">Время начала:</label>
-            <input type="datetime-local" id="shift-modal-start" class="input-text">
+        <div class="modal-row-two">
+          <div class="modal-field">
+            <label for="modal-shift-start" class="field-label">Начало смены:</label>
+            <input type="datetime-local" id="modal-shift-start" class="obsidian-input">
           </div>
-          <div class="form-group">
-            <label class="form-label">Время окончания:</label>
-            <input type="datetime-local" id="shift-modal-end" class="input-text">
+          <div class="modal-field">
+            <label for="modal-shift-end" class="field-label">Конец смены:</label>
+            <input type="datetime-local" id="modal-shift-end" class="obsidian-input">
           </div>
         </div>
-        <div class="form-group">
-          <label class="form-label">Заметка / Комментарий:</label>
-          <input type="text" id="shift-modal-note" class="input-text" placeholder="Необязательный комментарий к смене...">
+        <div class="modal-field">
+          <label for="modal-shift-rate" class="field-label">Ставка доли (%):</label>
+          <input type="number" id="modal-shift-rate" class="obsidian-input" min="0" max="100" step="0.5" value="10">
         </div>
-        <div id="shift-modal-calc-preview" style="background: rgba(0,0,0,0.2); padding: 10px; border-radius: 6px; font-size: 12px; color: var(--text-muted); margin-top: 10px;">
-          Длительность и заказы будут автоматически рассчитаны по указанному времени.
+        <div class="modal-field">
+          <label for="modal-shift-note" class="field-label">Заметка:</label>
+          <textarea id="modal-shift-note" class="obsidian-textarea" rows="2" placeholder="Заметка о смене..."></textarea>
         </div>
       </div>
       <div class="modal-footer">
-        <button id="btn-cancel-shift" class="btn btn-outline">Отмена</button>
-        <button id="btn-save-shift" class="btn btn-primary">Сохранить</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Modal for Viewing Shift Orders -->
-  <div id="modal-shift-orders" class="modal-overlay" style="display: none;">
-    <div class="modal-card modal-lg">
-      <div class="modal-header">
-        <h3 class="modal-title" id="modal-shift-orders-title">Заказы за смену</h3>
-        <button class="modal-close" id="modal-shift-orders-close">✕</button>
-      </div>
-      <div class="modal-body" style="max-height: 400px; overflow-y: auto;">
-        <div id="shift-orders-list-content"></div>
-      </div>
-      <div class="modal-footer">
-        <button id="btn-close-shift-orders" class="btn btn-primary">Закрыть</button>
+        <button id="btn-shift-modal-delete" class="btn btn-danger" style="margin-right: auto; display: none;">Удалить</button>
+        <button id="btn-shift-modal-cancel" class="btn btn-outline">Отмена</button>
+        <button id="btn-shift-modal-save" class="btn btn-primary-accent">Сохранить</button>
       </div>
     </div>
   </div>

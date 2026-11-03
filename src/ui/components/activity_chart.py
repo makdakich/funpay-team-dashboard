@@ -27,17 +27,17 @@ class ActivityChartWidget(QWidget):
         h = self.height()
 
         # Background card
-        painter.setPen(QPen(QColor("#27272a"), 1))
-        painter.setBrush(QBrush(QColor("#18181b")))
+        painter.setPen(QPen(QColor("#1B2436"), 1))
+        painter.setBrush(QBrush(QColor("#0E131F")))
         painter.drawRoundedRect(0, 0, w, h, 8, 8)
 
         if not self._data:
-            painter.setPen(QColor("#71717a"))
+            painter.setPen(QColor("#64748B"))
             painter.drawText(self.rect(), Qt.AlignCenter, "Нет данных об активности за последние 7 дней")
             return
 
         # Title
-        painter.setPen(QColor("#a1a1aa"))
+        painter.setPen(QColor("#94A3B8"))
         font = QFont("Segoe UI", 9)
         font.setBold(True)
         painter.setFont(font)

@@ -19,17 +19,35 @@ import {
   getUserStartOfDaysAgo,
   getUserStartOfToday
 } from '../../src/shared/datetime';
+import {
+  PeriodOption,
+  Granularity,
+  MetricType,
+  computeDateRange,
+  getRecommendedGranularity,
+  generateBuckets,
+  generateSvgChart,
+  formatDateForInput
+} from '../../src/shared/analytics';
 import { FunPayClientsAdapter } from '../api/adapters/clients';
 
 class OptionsController {
   private state: ExtensionState | null = null;
   private currentTab = 'dashboard';
-  private chartMetric: 'turnover' | 'orders' | 'share' = 'turnover';
+
+  // Chart analytics state
+  private chartMetric: MetricType = 'turnover';
   private chartCurrency = '₽';
-  private chartDays = 7;
+  private chartPeriod: PeriodOption = '7';
+  private chartGranularity: Granularity = 'days';
+  private customStartDate = '';
+  private customEndDate = '';
+
+  // Filter & list state
   private orderPeriodFilter = 'all';
   private orderSearchQuery = '';
   private clientSearchQuery = '';
+  private clientsSort = 'turnover';
   private templateProfileFilter = 'all';
   private recordingKey = false;
   private shifts: CompletedShift[] = [];
@@ -58,6 +76,7 @@ class OptionsController {
         }
         if (changes.fphk_shift_state) {
           this.renderDashboardShift();
+          this.renderShiftsActiveBanner();
         }
       }
     });
@@ -112,13 +131,33 @@ class OptionsController {
 
   private renderSidebarStatus() {
     const textEl = document.getElementById('sidebar-sync-text');
-    if (!textEl || !this.state) return;
+    const userEl = document.getElementById('sidebar-username');
+    const avatarEl = document.getElementById('sidebar-user-avatar');
+    const orderCountEl = document.getElementById('nav-orders-count');
+    const topbarSyncTime = document.getElementById('topbar-sync-time');
+
+    if (!this.state) return;
+
+    if (orderCountEl && this.state.cache.orders) {
+      orderCountEl.textContent = String(this.state.cache.orders.length);
+    }
+
+    if (topbarSyncTime && this.state.cache.lastSyncTimestamp) {
+      const d = new Date(this.state.cache.lastSyncTimestamp);
+      topbarSyncTime.textContent = `Обновлено: ${d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+    }
+
     if (this.state.cache.accountInfo) {
       const acc = this.state.cache.accountInfo;
       const bText = formatMoney(acc.totalBalance, acc.currency);
-      textEl.textContent = `${acc.username} (${bText})`;
+      if (textEl) textEl.textContent = bText;
+      if (userEl) userEl.textContent = acc.username;
+      if (avatarEl) {
+        avatarEl.textContent = (acc.username || 'FP').slice(0, 2).toUpperCase();
+      }
     } else {
-      textEl.textContent = 'API не подключен';
+      if (textEl) textEl.textContent = 'API не подключен';
+      if (userEl) userEl.textContent = 'Гость';
     }
   }
 
@@ -157,7 +196,9 @@ class OptionsController {
     }
   }
 
-  // --- 1. DASHBOARD ---
+  // ==========================================================================
+  // 1. DASHBOARD & ADVANCED SALES ANALYTICS
+  // ==========================================================================
   private bindDashboardEvents() {
     // Sync button (Normal incremental sync)
     document.getElementById('btn-dashboard-sync')?.addEventListener('click', async () => {
@@ -172,7 +213,7 @@ class OptionsController {
         await this.refreshState();
       } finally {
         btn.disabled = false;
-        btn.innerHTML = '<span class="icon">🔄</span> Обновить данные';
+        btn.innerHTML = '<span class="btn-icon">🔄</span> Синхронизировать';
       }
     });
 
@@ -196,17 +237,17 @@ class OptionsController {
         alert('Ошибка запроса полной истории: ' + (err instanceof Error ? err.message : String(err)));
       } finally {
         btn.disabled = false;
-        btn.innerHTML = '<span class="icon">📥</span> Загрузить всю историю';
+        btn.innerHTML = '<span class="btn-icon">📥</span> Загрузить всю историю';
         if (banner) {
           setTimeout(() => { banner.style.display = 'none'; }, 2000);
         }
       }
     });
 
-    // Stop Shift from Dashboard Banner
+    // Stop Shift from Dashboard Live Card
     document.getElementById('btn-dash-stop-shift')?.addEventListener('click', async () => {
       const activeShiftRes = await chrome.runtime.sendMessage({ type: 'GET_SHIFT_STATE' });
-      const op = activeShiftRes?.shiftState?.currentOperator || 'Оператор 1';
+      const op = activeShiftRes?.shiftState?.currentOperator || 'Оператор';
       if (!window.confirm(`Завершить активную смену оператора «${op}»?`)) return;
 
       const res = await chrome.runtime.sendMessage({ type: 'STOP_SHIFT' });
@@ -216,10 +257,31 @@ class OptionsController {
       }
     });
 
+    // Topbar shift action button (start or stop)
+    document.getElementById('btn-topbar-shift-action')?.addEventListener('click', async () => {
+      const res = await chrome.runtime.sendMessage({ type: 'GET_SHIFT_STATE' });
+      const shiftState = res?.shiftState;
+      if (shiftState && shiftState.shiftActive) {
+        if (window.confirm(`Завершить активную смену оператора «${shiftState.currentOperator || 'Оператор'}»?`)) {
+          await chrome.runtime.sendMessage({ type: 'STOP_SHIFT' });
+          await this.refreshState();
+        }
+      } else {
+        const op = prompt('Введите имя сменщика для старта смены:', 'Оператор 1');
+        if (op && op.trim()) {
+          await chrome.runtime.sendMessage({
+            type: 'START_SHIFT',
+            payload: { operator: op.trim() }
+          });
+          await this.refreshState();
+        }
+      }
+    });
+
     // Save seller share percent
     document.getElementById('btn-save-share')?.addEventListener('click', async () => {
       const input = document.getElementById('input-seller-share') as HTMLInputElement;
-      const shareVal = parseFloat(input.value) || 0;
+      const shareVal = parseFloat(input?.value) || 0;
       await chrome.runtime.sendMessage({
         type: 'UPDATE_SETTINGS',
         payload: { sellerSharePercent: shareVal }
@@ -228,51 +290,211 @@ class OptionsController {
       await this.refreshState();
     });
 
+    // Sync share slider and input
+    const slider = document.getElementById('input-seller-share-slider') as HTMLInputElement | null;
+    const numInput = document.getElementById('input-seller-share') as HTMLInputElement | null;
+    const shareDisplay = document.getElementById('dash-share-percent-display');
+
+    slider?.addEventListener('input', () => {
+      if (numInput) numInput.value = slider.value;
+      if (shareDisplay) shareDisplay.textContent = `${slider.value}%`;
+      this.updateLiveShareCalc();
+      this.renderChart();
+    });
+
+    numInput?.addEventListener('input', () => {
+      if (slider) slider.value = numInput.value;
+      if (shareDisplay) shareDisplay.textContent = `${numInput.value}%`;
+      this.updateLiveShareCalc();
+      this.renderChart();
+    });
+
+    // Hero currency switcher chips
+    document.querySelectorAll('#hero-currency-chips .currency-chip').forEach(chip => {
+      chip.addEventListener('click', () => {
+        document.querySelectorAll('#hero-currency-chips .currency-chip').forEach(c => c.classList.remove('active'));
+        chip.classList.add('active');
+        const curr = chip.getAttribute('data-curr') || '₽';
+        this.chartCurrency = normalizeCurrency(curr);
+        const currSelect = document.getElementById('chart-currency-select') as HTMLSelectElement | null;
+        if (currSelect) currSelect.value = this.chartCurrency;
+        this.renderDashboard();
+      });
+    });
+
     // Chart metric toggles
     document.querySelectorAll('.btn-chart-type').forEach(btn => {
       btn.addEventListener('click', () => {
         document.querySelectorAll('.btn-chart-type').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
-        this.chartMetric = (btn.getAttribute('data-type') as 'turnover' | 'orders' | 'share') || 'turnover';
+        this.chartMetric = (btn.getAttribute('data-type') as MetricType) || 'turnover';
         this.renderChart();
       });
     });
 
-    // Chart currency selector
-    const currSelect = document.getElementById('chart-currency-select') as HTMLSelectElement;
+    // Chart granularity toggles
+    document.querySelectorAll('.btn-chart-granularity').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.btn-chart-granularity').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        this.chartGranularity = (btn.getAttribute('data-granularity') as Granularity) || 'days';
+        this.renderChart();
+      });
+    });
+
+    // Chart currency dropdown
+    const currSelect = document.getElementById('chart-currency-select') as HTMLSelectElement | null;
     currSelect?.addEventListener('change', () => {
       this.chartCurrency = normalizeCurrency(currSelect.value);
+      document.querySelectorAll('#hero-currency-chips .currency-chip').forEach(c => {
+        if (c.getAttribute('data-curr') === this.chartCurrency) {
+          c.classList.add('active');
+        } else {
+          c.classList.remove('active');
+        }
+      });
       this.renderChart();
     });
 
-    // Chart days toggles
-    document.querySelectorAll('.btn-chart-days').forEach(btn => {
+    // Period pills
+    document.querySelectorAll('.period-pill').forEach(btn => {
       btn.addEventListener('click', () => {
-        document.querySelectorAll('.btn-chart-days').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.period-pill').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
-        this.chartDays = parseInt(btn.getAttribute('data-days') || '7', 10);
+        const periodAttr = btn.getAttribute('data-days') as PeriodOption;
+        this.chartPeriod = periodAttr || '7';
+
+        const customBar = document.getElementById('chart-custom-range-bar');
+        if (this.chartPeriod === 'custom') {
+          if (customBar) customBar.style.display = 'flex';
+          const startInp = document.getElementById('chart-date-start') as HTMLInputElement | null;
+          const endInp = document.getElementById('chart-date-end') as HTMLInputElement | null;
+          if (startInp && !startInp.value) {
+            const d = new Date();
+            d.setDate(d.getDate() - 30);
+            startInp.value = formatDateForInput(d);
+            this.customStartDate = startInp.value;
+          }
+          if (endInp && !endInp.value) {
+            endInp.value = formatDateForInput(new Date());
+            this.customEndDate = endInp.value;
+          }
+        } else {
+          if (customBar) customBar.style.display = 'none';
+        }
+
+        // Set recommended granularity
+        const orders = this.state?.cache?.orders || [];
+        const range = computeDateRange(this.chartPeriod, this.customStartDate, this.customEndDate, orders);
+        if (range.isValid) {
+          this.chartGranularity = getRecommendedGranularity(range.start, range.end);
+          document.querySelectorAll('.btn-chart-granularity').forEach(gb => {
+            if (gb.getAttribute('data-granularity') === this.chartGranularity) {
+              gb.classList.add('active');
+            } else {
+              gb.classList.remove('active');
+            }
+          });
+        }
+
         this.renderChart();
       });
+    });
+
+    // Custom date range inputs
+    const startInp = document.getElementById('chart-date-start') as HTMLInputElement | null;
+    const endInp = document.getElementById('chart-date-end') as HTMLInputElement | null;
+
+    const handleCustomDateChange = () => {
+      if (startInp && endInp) {
+        this.customStartDate = startInp.value;
+        this.customEndDate = endInp.value;
+        const orders = this.state?.cache?.orders || [];
+        const range = computeDateRange('custom', this.customStartDate, this.customEndDate, orders);
+        const errEl = document.getElementById('chart-range-error');
+
+        if (!range.isValid) {
+          if (errEl) {
+            errEl.textContent = range.error || 'Ошибка в датах';
+            errEl.style.display = 'inline';
+          }
+        } else {
+          if (errEl) errEl.style.display = 'none';
+          this.chartGranularity = getRecommendedGranularity(range.start, range.end);
+          document.querySelectorAll('.btn-chart-granularity').forEach(gb => {
+            if (gb.getAttribute('data-granularity') === this.chartGranularity) {
+              gb.classList.add('active');
+            } else {
+              gb.classList.remove('active');
+            }
+          });
+          this.renderChart();
+        }
+      }
+    };
+
+    startInp?.addEventListener('change', handleCustomDateChange);
+    endInp?.addEventListener('change', handleCustomDateChange);
+    document.getElementById('btn-chart-apply-range')?.addEventListener('click', handleCustomDateChange);
+
+    // Reset range button
+    document.getElementById('btn-chart-reset-range')?.addEventListener('click', () => {
+      const p7 = document.querySelector('.period-pill[data-days="7"]') as HTMLButtonElement | null;
+      p7?.click();
+    });
+
+    // View all orders button on dashboard
+    document.getElementById('btn-view-all-orders')?.addEventListener('click', () => {
+      this.switchTab('orders');
+    });
+
+    // Global quick search
+    document.getElementById('global-search-input')?.addEventListener('input', (e) => {
+      const query = (e.target as HTMLInputElement).value.trim();
+      if (query.length > 1) {
+        this.orderSearchQuery = query.toLowerCase();
+        this.clientSearchQuery = query.toLowerCase();
+        this.renderRecentOrders();
+      }
+    });
+
+    // Client orders drawer close
+    document.getElementById('client-drawer-close')?.addEventListener('click', () => {
+      const drawer = document.getElementById('client-orders-drawer');
+      if (drawer) drawer.style.display = 'none';
+    });
+    document.getElementById('client-orders-drawer')?.addEventListener('click', (e) => {
+      if ((e.target as HTMLElement).id === 'client-orders-drawer') {
+        (e.target as HTMLElement).style.display = 'none';
+      }
+    });
+
+    // Stop shift on shifts tab
+    document.getElementById('btn-shifts-stop-active')?.addEventListener('click', async () => {
+      const activeShiftRes = await chrome.runtime.sendMessage({ type: 'GET_SHIFT_STATE' });
+      const op = activeShiftRes?.shiftState?.currentOperator || 'Оператор';
+      if (!window.confirm(`Завершить активную смену оператора «${op}»?`)) return;
+      await chrome.runtime.sendMessage({ type: 'STOP_SHIFT' });
+      await this.refreshState();
     });
   }
 
   private renderDashboard() {
     if (!this.state) return;
     const orders = this.state.cache.orders;
-    const sharePercent = this.state.settings.sellerSharePercent ?? 10;
+    const sharePercent = this.state.settings.sellerSharePercent ?? 12;
     const balances = this.state.cache.accountInfo?.balancesByCurrency ?? {};
     const primaryCurrency = this.state.cache.accountInfo?.currency ?? '₽';
     const lastSync = this.state.cache.lastSyncTimestamp;
 
     const stats = calculateDashboardStats(orders, sharePercent, balances, primaryCurrency, lastSync);
 
-    // Balance Card (strictly real data, separate from turnover)
+    // Balance Card
     const balanceEl = document.getElementById('stat-balance-val');
     const userEl = document.getElementById('stat-balance-user');
 
     if (balanceEl) {
       if (this.state.cache.accountInfo) {
-        // Show all known currency balances
         const bList = Object.entries(balances).map(([curr, amt]) => formatMoney(amt, curr));
         balanceEl.textContent = bList.length > 0 ? bList.join(' • ') : formatMoney(this.state.cache.accountInfo.totalBalance, primaryCurrency);
       } else {
@@ -286,58 +508,261 @@ class OptionsController {
       userEl.textContent = 'Укажите токен в разделе "FunPay API"';
     }
 
-    // Share Input
-    const shareInput = document.getElementById('input-seller-share') as HTMLInputElement;
+    // Share input & slider
+    const shareInput = document.getElementById('input-seller-share') as HTMLInputElement | null;
+    const shareSlider = document.getElementById('input-seller-share-slider') as HTMLInputElement | null;
+    const shareDisplay = document.getElementById('dash-share-percent-display');
+
     if (shareInput) shareInput.value = String(sharePercent);
+    if (shareSlider) shareSlider.value = String(sharePercent);
+    if (shareDisplay) shareDisplay.textContent = `${sharePercent}%`;
 
-    // Render multi-currency period blocks
-    this.renderPeriodBlock('period-metrics-today', stats.today);
-    this.renderPeriodBlock('period-metrics-7days', stats.last7Days);
-    this.renderPeriodBlock('period-metrics-30days', stats.last30Days);
-    this.renderPeriodBlock('period-metrics-90days', stats.last90Days);
-    this.renderPeriodBlock('period-metrics-all', stats.allTime);
+    // Render Hero Delta metrics
+    this.renderHeroDeltaMetrics(stats);
 
+    // Render Operations split
+    this.renderRecentOrders();
+    this.renderLeaderboard();
+
+    // Render active shift
     this.renderDashboardShift();
     this.renderHistoryCoverage();
+
+    // Render sales chart
     this.renderChart();
+  }
+
+  private updateLiveShareCalc() {
+    const input = document.getElementById('input-seller-share') as HTMLInputElement | null;
+    const shareVal = parseFloat(input?.value || '12') || 0;
+    const badge = document.getElementById('dash-hero-share-calc');
+    if (!badge || !this.state) return;
+
+    const orders = this.state.cache.orders || [];
+    const stats = calculateDashboardStats(
+      orders,
+      shareVal,
+      this.state.cache.accountInfo?.balancesByCurrency ?? {},
+      this.state.cache.accountInfo?.currency ?? '₽',
+      this.state.cache.lastSyncTimestamp ?? null
+    );
+
+    const curr = normalizeCurrency(this.chartCurrency);
+    const todayStat = stats.today?.currencies?.[curr];
+    const todayTurnover = todayStat?.turnover || 0;
+    const shareEarned = todayTurnover * (shareVal / 100);
+    badge.textContent = `Чистая доля сегодня: ${formatMoney(shareEarned, curr)}`;
+  }
+
+  private renderHeroDeltaMetrics(stats: any) {
+    const todayTurnoverEl = document.getElementById('dash-today-turnover-val');
+    const todayOrdersEl = document.getElementById('dash-today-orders-count');
+    const todayDeltaEl = document.getElementById('dash-today-delta');
+
+    const d7TurnoverEl = document.getElementById('dash-7d-turnover-val');
+    const d7AvgCheckEl = document.getElementById('dash-7d-avg-check');
+
+    const closedRateEl = document.getElementById('dash-closed-rate-val');
+    const qualityBadgeEl = document.getElementById('dash-quality-badge');
+    const alltimeSummaryEl = document.getElementById('dash-alltime-summary');
+
+    const curr = normalizeCurrency(this.chartCurrency);
+    const todayStat = stats.today?.currencies?.[curr];
+    const todayTurnover = todayStat?.turnover || 0;
+    const todayOrders = todayStat?.ordersCount || 0;
+
+    const d7Stat = stats.last7Days?.currencies?.[curr];
+    const d7Turnover = d7Stat?.turnover || 0;
+    const d7Orders = d7Stat?.ordersCount || 0;
+    const d7AvgCheck = d7Orders > 0 ? Math.round(d7Turnover / d7Orders) : 0;
+
+    const allStat = stats.allTime?.currencies?.[curr];
+    const allTurnover = allStat?.turnover || 0;
+    const allOrders = allStat?.ordersCount || 0;
+    const allRefunds = allStat?.refundedCount || 0;
+    const totalTransactions = allOrders + allRefunds;
+    const successRate = totalTransactions > 0 ? Math.round((allOrders / totalTransactions) * 100) : 100;
+
+    if (todayTurnoverEl) todayTurnoverEl.textContent = formatMoney(todayTurnover, curr);
+    if (todayOrdersEl) todayOrdersEl.textContent = `${todayOrders} закрытых заказов`;
+    if (todayDeltaEl) {
+      const avgDaily7 = d7Turnover / 7;
+      if (avgDaily7 > 0) {
+        const delta = Math.round(((todayTurnover - avgDaily7) / avgDaily7) * 100);
+        todayDeltaEl.textContent = `${delta >= 0 ? '+' : ''}${delta}%`;
+        todayDeltaEl.className = `delta-badge ${delta >= 0 ? 'positive' : 'neutral'}`;
+      } else {
+        todayDeltaEl.textContent = '100% ▲';
+        todayDeltaEl.className = 'delta-badge positive';
+      }
+    }
+
+    if (d7TurnoverEl) d7TurnoverEl.textContent = formatMoney(d7Turnover, curr);
+    if (d7AvgCheckEl) d7AvgCheckEl.textContent = `Средний чек: ${formatMoney(d7AvgCheck, curr)}`;
+
+    if (closedRateEl) closedRateEl.textContent = `${allRefunds} возвр. (${allOrders} успешн.)`;
+    if (qualityBadgeEl) {
+      qualityBadgeEl.textContent = `${successRate}%`;
+      qualityBadgeEl.className = `delta-badge ${successRate >= 95 ? 'success' : 'neutral'}`;
+    }
+    if (alltimeSummaryEl) alltimeSummaryEl.textContent = `Всего заказов: ${totalTransactions}`;
+
+    this.updateLiveShareCalc();
+  }
+
+  private renderRecentOrders() {
+    const tbody = document.getElementById('dash-recent-orders-body');
+    const emptyBox = document.getElementById('dash-recent-empty');
+    const badgeTotal = document.getElementById('dash-orders-total-badge');
+    if (!tbody || !this.state) return;
+
+    let orders = this.state.cache.orders || [];
+    if (badgeTotal) badgeTotal.textContent = String(orders.length);
+
+    if (this.orderSearchQuery) {
+      orders = orders.filter(o =>
+        o.id.toLowerCase().includes(this.orderSearchQuery) ||
+        (o.buyer && o.buyer.toLowerCase().includes(this.orderSearchQuery)) ||
+        (o.title && o.title.toLowerCase().includes(this.orderSearchQuery))
+      );
+    }
+
+    if (orders.length === 0) {
+      tbody.innerHTML = '';
+      if (emptyBox) emptyBox.style.display = 'block';
+      return;
+    }
+    if (emptyBox) emptyBox.style.display = 'none';
+
+    const recent = orders.slice(0, 8);
+    tbody.innerHTML = recent.map(o => {
+      const statusPill = o.status === 'closed'
+        ? '<span class="status-pill closed">Закрыт</span>'
+        : (o.status === 'paid' ? '<span class="status-pill paid">Оплачен</span>' : '<span class="status-pill refunded">Возврат</span>');
+      return `
+        <tr>
+          <td><strong style="font-family:var(--font-mono); font-size:11px;">#${o.id}</strong></td>
+          <td style="white-space:nowrap;">${o.dateStr}</td>
+          <td><strong>${o.buyer || 'Покупатель'}</strong></td>
+          <td class="tabular-nums" style="font-weight:600; color:var(--text-primary);">${formatMoney(o.price, o.currency)}</td>
+          <td>${statusPill}</td>
+        </tr>
+      `;
+    }).join('');
+  }
+
+  private renderLeaderboard() {
+    const listEl = document.getElementById('dash-leaderboard-list');
+    if (!listEl) return;
+
+    if (this.shifts.length === 0) {
+      listEl.innerHTML = `
+        <div style="color:var(--text-muted); font-size:12px; text-align:center; padding:16px 0;">
+          Смен пока нет. Статистика появится после завершения первой смены.
+        </div>
+      `;
+      return;
+    }
+
+    const opStats: Record<string, { shiftsCount: number; turnoverByCurrency: Record<string, number>; totalSeconds: number; ordersCount: number }> = {};
+    for (const s of this.shifts) {
+      const name = s.operatorName || 'Без имени';
+      if (!opStats[name]) {
+        opStats[name] = { shiftsCount: 0, turnoverByCurrency: {}, totalSeconds: 0, ordersCount: 0 };
+      }
+      opStats[name].shiftsCount += 1;
+      opStats[name].totalSeconds += (s.duration || 0) / 1000;
+      opStats[name].ordersCount += (s.earnings?.ordersCount || 0);
+
+      const tc = s.earnings?.turnoverByCurrency || {};
+      for (const [c, amt] of Object.entries(tc)) {
+        opStats[name].turnoverByCurrency[c] = (opStats[name].turnoverByCurrency[c] || 0) + amt;
+      }
+    }
+
+    const items = Object.entries(opStats).sort((a, b) => b[1].shiftsCount - a[1].shiftsCount).slice(0, 5);
+
+    listEl.innerHTML = items.map(([name, stat]) => {
+      const hours = Math.round((stat.totalSeconds / 3600) * 10) / 10;
+      const turnParts = Object.entries(stat.turnoverByCurrency).map(([c, amt]) => formatMoney(amt, c));
+      const turnStr = turnParts.length > 0 ? turnParts.join(' • ') : '0 ₽';
+      const initials = name.slice(0, 2).toUpperCase();
+
+      return `
+        <div class="leader-item">
+          <div class="leader-left">
+            <div class="leader-avatar">${initials}</div>
+            <div>
+              <div class="leader-name">${name}</div>
+              <div class="leader-meta">${stat.shiftsCount} смен (${hours} ч) • ${stat.ordersCount} зак.</div>
+            </div>
+          </div>
+          <div class="leader-right">
+            <div class="leader-val tabular-nums">${turnStr}</div>
+          </div>
+        </div>
+      `;
+    }).join('');
   }
 
   private async renderDashboardShift() {
     const shiftBanner = document.getElementById('dashboard-active-shift');
-    if (!shiftBanner) return;
+    const topbarPill = document.getElementById('topbar-shift-pill');
+    const topbarText = document.getElementById('topbar-shift-text');
+    const topbarBtn = document.getElementById('btn-topbar-shift-action');
 
     try {
       const res = await chrome.runtime.sendMessage({ type: 'GET_SHIFT_STATE' });
       const shiftState = res?.shiftState;
 
       if (!shiftState || !shiftState.shiftActive || !shiftState.shiftStartTime) {
-        shiftBanner.style.display = 'none';
+        if (shiftBanner) shiftBanner.style.display = 'none';
+        if (topbarPill) {
+          topbarPill.className = 'topbar-shift-pill shift-idle';
+          if (topbarText) topbarText.textContent = 'Смена не начата';
+          if (topbarBtn) {
+            topbarBtn.textContent = '▶ Старт';
+            topbarBtn.title = 'Начать смену';
+          }
+        }
         return;
       }
 
-      shiftBanner.style.display = 'flex';
+      if (shiftBanner) shiftBanner.style.display = 'block';
       const opEl = document.getElementById('dash-shift-op');
       const startEl = document.getElementById('dash-shift-start');
       const timerEl = document.getElementById('dash-shift-timer');
       const earningsEl = document.getElementById('dash-shift-earnings');
 
-      if (opEl) opEl.textContent = `👤 ${shiftState.currentOperator || 'Оператор 1'}`;
+      const opName = shiftState.currentOperator || 'Оператор 1';
+      if (opEl) opEl.textContent = `👤 ${opName}`;
       if (startEl) startEl.textContent = `Начало: ${formatTimeOnly(shiftState.shiftStartTime)}`;
 
       const orders = this.state?.cache?.orders || [];
-      const sharePercent = this.state?.settings?.sellerSharePercent ?? 10.0;
+      const sharePercent = this.state?.settings?.sellerSharePercent ?? 12.0;
 
       const elapsed = Math.max(0, Date.now() - shiftState.shiftStartTime);
-      if (timerEl) timerEl.textContent = formatDuration(elapsed);
+      const elapsedFormatted = formatDuration(elapsed);
+      if (timerEl) timerEl.textContent = elapsedFormatted;
 
+      const e = calculateShiftEarnings(shiftState.shiftStartTime, Date.now(), orders, sharePercent);
+      const parts: string[] = [];
+      for (const [curr, amt] of Object.entries(e.turnoverByCurrency)) {
+        if (amt > 0) parts.push(formatMoney(amt, curr));
+      }
+      const turnoverStr = parts.length > 0 ? parts.join(', ') : '0 ₽';
       if (earningsEl) {
-        const e = calculateShiftEarnings(shiftState.shiftStartTime, Date.now(), orders, sharePercent);
-        const parts: string[] = [];
-        for (const [curr, amt] of Object.entries(e.turnoverByCurrency)) {
-          if (amt > 0) parts.push(formatMoney(amt, curr));
-        }
-        const turnoverStr = parts.length > 0 ? parts.join(', ') : '0 ₽';
         earningsEl.textContent = `Заказов: ${e.ordersCount} • Выручка: ${turnoverStr}`;
+      }
+
+      // Update Topbar
+      if (topbarPill) {
+        topbarPill.className = 'topbar-shift-pill shift-active';
+        if (topbarText) topbarText.textContent = `${opName} • ${elapsedFormatted}`;
+        if (topbarBtn) {
+          topbarBtn.textContent = '🛑 Стоп';
+          topbarBtn.title = 'Завершить активную смену';
+        }
       }
     } catch {
       // ignore
@@ -360,7 +785,10 @@ class OptionsController {
     const newest = orders[0];
     const oldest = orders[orders.length - 1];
 
-    spanTextEl.textContent = `с ${oldest.dateStr} по ${newest.dateStr}`;
+    const newestStr = newest.dateStr || (newest.timestamp ? new Date(newest.timestamp).toLocaleDateString('ru-RU') : '');
+    const oldestStr = oldest.dateStr || (oldest.timestamp ? new Date(oldest.timestamp).toLocaleDateString('ru-RU') : '');
+
+    spanTextEl.textContent = oldestStr && newestStr ? `с ${oldestStr} по ${newestStr}` : 'История загружена';
     metaTextEl.textContent = `Всего в базе: ${orders.length} заказов`;
   }
 
@@ -398,149 +826,121 @@ class OptionsController {
     }
   }
 
-  private renderPeriodBlock(containerId: string, pStat: PeriodMultiCurrencyStats) {
-    const el = document.getElementById(containerId);
-    if (!el) return;
-
-    const currEntries = Object.values(pStat.currencies);
-
-    if (currEntries.length === 0) {
-      el.innerHTML = `
-        <div class="metric-row"><span class="metric-name">Оборот:</span><span class="metric-val">0 ₽</span></div>
-        <div class="metric-row highlight-row"><span class="metric-name">Моя доля:</span><span class="metric-val">0 ₽</span></div>
-        <div class="metric-row"><span class="metric-name">Заказов:</span><span class="metric-val">0</span></div>
-        <div class="metric-row"><span class="metric-name">Клиентов:</span><span class="metric-val">0</span></div>
-      `;
-      return;
-    }
-
-    let html = '';
-
-    // Render turnover & share for each isolated currency (never summed together)
-    for (const c of currEntries) {
-      html += `
-        <div class="metric-row">
-          <span class="metric-name">Оборот (${c.currency}):</span>
-          <span class="metric-val">${formatMoney(c.turnover, c.currency)}</span>
-        </div>
-        <div class="metric-row highlight-row">
-          <span class="metric-name">Моя доля (${c.currency}):</span>
-          <span class="metric-val">${formatMoney(c.sellerShare, c.currency)}</span>
-        </div>
-      `;
-    }
-
-    // Transactions count & unique clients
-    html += `
-      <div class="metric-row">
-        <span class="metric-name">Успешных заказов:</span>
-        <span class="metric-val">${pStat.totalOrdersCount}</span>
-      </div>
-      <div class="metric-row">
-        <span class="metric-name">Клиентов:</span>
-        <span class="metric-val">${pStat.uniqueClientsCount}</span>
-      </div>
-    `;
-
-    // Explicitly show refunded orders if any
-    if (pStat.totalRefundedCount > 0) {
-      const refDetails = currEntries
-        .filter(c => c.refundedCount > 0)
-        .map(c => `${formatMoney(c.refundedSum, c.currency)} (${c.refundedCount} шт)`)
-        .join(', ');
-
-      html += `
-        <div class="metric-row" style="color:#f87171; border-top:1px dashed #374151; padding-top:4px; margin-top:4px;">
-          <span class="metric-name" style="color:#f87171;">Возвраты:</span>
-          <span class="metric-val" style="color:#f87171;">${refDetails}</span>
-        </div>
-      `;
-    }
-
-    el.innerHTML = html;
-  }
-
   private renderChart() {
     const container = document.getElementById('chart-container');
     if (!container || !this.state) return;
 
-    const orders = this.state.cache.orders;
-    const sharePercent = this.state.settings.sellerSharePercent ?? 10;
+    const orders = this.state.cache.orders || [];
+    const sharePercent = this.state.settings.sellerSharePercent ?? 12;
     const curr = normalizeCurrency(this.chartCurrency);
 
-    // Group daily buckets in user's local timezone
-    const now = new Date();
-    const buckets: { dateStr: string; label: string; turnover: number; orders: number; share: number }[] = [];
-
-    for (let i = this.chartDays - 1; i >= 0; i--) {
-      const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
-      const start = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
-      const end = start + 24 * 60 * 60 * 1000;
-
-      // Filter by matching currency and only count completed/active sales
-      const dayOrders = orders.filter(o =>
-        o.timestamp >= start &&
-        o.timestamp < end &&
-        normalizeCurrency(o.currency) === curr &&
-        (o.status === 'paid' || o.status === 'closed')
-      );
-
-      const turnover = dayOrders.reduce((sum, o) => sum + (o.price || 0), 0);
-      const share = turnover * (sharePercent / 100);
-
-      const label = `${d.getDate()}.${d.getMonth() + 1}`;
-      buckets.push({
-        dateStr: d.toLocaleDateString(),
-        label,
-        turnover,
-        orders: dayOrders.length,
-        share
-      });
+    // Compute active range
+    const range = computeDateRange(this.chartPeriod, this.customStartDate, this.customEndDate, orders);
+    const summaryEl = document.getElementById('chart-range-summary');
+    if (summaryEl && range.label) {
+      summaryEl.textContent = range.label;
     }
 
-    const values = buckets.map(b => {
-      if (this.chartMetric === 'turnover') return b.turnover;
-      if (this.chartMetric === 'share') return b.share;
-      return b.orders;
+    const errEl = document.getElementById('chart-range-error');
+    if (!range.isValid) {
+      if (errEl) {
+        errEl.textContent = range.error || 'Некорректный диапазон дат';
+        errEl.style.display = 'inline';
+      }
+      return;
+    } else {
+      if (errEl) errEl.style.display = 'none';
+    }
+
+    // Generate buckets with zero-filling
+    const buckets = generateBuckets(orders, range.start, range.end, this.chartGranularity, curr, sharePercent);
+
+    // Render SVG
+    container.innerHTML = generateSvgChart(buckets, this.chartMetric, curr, {
+      width: container.clientWidth || 860,
+      height: 260
     });
 
-    const maxVal = Math.max(...values, 1);
-    const width = 800;
-    const height = 240;
-    const padding = 40;
-    const chartW = width - padding * 2;
-    const chartH = height - padding * 2;
-    const barWidth = Math.max(10, Math.min(36, (chartW / buckets.length) * 0.6));
-
-    let barsSvg = '';
-    buckets.forEach((b, idx) => {
-      const val = values[idx];
-      const barH = (val / maxVal) * chartH;
-      const x = padding + (idx * (chartW / buckets.length)) + ((chartW / buckets.length) - barWidth) / 2;
-      const y = height - padding - barH;
-
-      const displayVal = this.chartMetric === 'orders' ? String(val) : formatMoney(val, curr);
-
-      barsSvg += `
-        <g class="chart-bar-group">
-          <rect x="${x}" y="${y}" width="${barWidth}" height="${barH}" rx="4" fill="#10b981" opacity="0.85">
-            <title>${b.dateStr} (${curr}): ${displayVal}</title>
-          </rect>
-          <text x="${x + barWidth / 2}" y="${height - padding + 16}" text-anchor="middle" fill="#94a3b8" font-size="11">${b.label}</text>
-          ${val > 0 ? `<text x="${x + barWidth / 2}" y="${Math.max(16, y - 6)}" text-anchor="middle" fill="#f8fafc" font-size="10" font-weight="600">${this.chartMetric === 'orders' ? val : Math.round(val)}</text>` : ''}
-        </g>
-      `;
-    });
-
-    container.innerHTML = `
-      <svg width="100%" height="100%" viewBox="0 0 ${width} ${height}" preserveAspectRatio="xMidYMid meet">
-        <line x1="${padding}" y1="${height - padding}" x2="${width - padding}" y2="${height - padding}" stroke="#334155" stroke-width="1" />
-        ${barsSvg}
-      </svg>
-    `;
+    this.bindChartTooltip(container);
   }
 
-  // --- 1b. SHIFTS HISTORY ---
+  private bindChartTooltip(container: HTMLElement) {
+    const tooltip = document.getElementById('chart-tooltip');
+    if (!tooltip) return;
+
+    const pointGroups = container.querySelectorAll('.chart-point-group');
+    const crosshair = container.querySelector('#chart-crosshair') as SVGLineElement | null;
+
+    pointGroups.forEach(g => {
+      g.addEventListener('mouseenter', (e) => {
+        const target = e.currentTarget as HTMLElement;
+        const date = target.getAttribute('data-date') || '';
+        const val = target.getAttribute('data-val') || '';
+        const turnover = target.getAttribute('data-turnover') || '';
+        const share = target.getAttribute('data-share') || '';
+        const ordersCount = target.getAttribute('data-orders') || '0';
+        const refundsCount = parseInt(target.getAttribute('data-refunds') || '0', 10);
+
+        const dEl = document.getElementById('tt-date');
+        const vEl = document.getElementById('tt-val');
+        const tEl = document.getElementById('tt-turnover');
+        const sEl = document.getElementById('tt-share');
+        const oEl = document.getElementById('tt-orders');
+        const refRow = document.getElementById('tt-refunds-row');
+        const refEl = document.getElementById('tt-refunds');
+
+        if (dEl) dEl.textContent = date;
+        if (vEl) vEl.textContent = val;
+        if (tEl) tEl.textContent = turnover;
+        if (sEl) sEl.textContent = share;
+        if (oEl) oEl.textContent = `${ordersCount} шт.`;
+        if (refRow && refEl) {
+          if (refundsCount > 0) {
+            refEl.textContent = `${refundsCount} шт.`;
+            refRow.style.display = 'flex';
+          } else {
+            refRow.style.display = 'none';
+          }
+        }
+
+        tooltip.style.display = 'block';
+
+        // Update crosshair
+        const circle = target.querySelector('.chart-hit-area') as SVGCircleElement | null;
+        if (crosshair && circle) {
+          const cx = circle.getAttribute('cx') || '0';
+          crosshair.setAttribute('x1', cx);
+          crosshair.setAttribute('x2', cx);
+          crosshair.style.opacity = '1';
+        }
+      });
+
+      g.addEventListener('mousemove', (e: MouseEvent) => {
+        const wrapper = container.parentElement;
+        if (!wrapper) return;
+        const rect = wrapper.getBoundingClientRect();
+        let left = e.clientX - rect.left + 15;
+        let top = e.clientY - rect.top - 20;
+
+        if (left + 180 > rect.width) {
+          left = e.clientX - rect.left - 195;
+        }
+        if (top < 10) top = 10;
+
+        tooltip.style.left = `${left}px`;
+        tooltip.style.top = `${top}px`;
+      });
+    });
+
+    container.addEventListener('mouseleave', () => {
+      tooltip.style.display = 'none';
+      if (crosshair) crosshair.style.opacity = '0';
+    });
+  }
+
+  // ==========================================================================
+  // 2. SHIFTS HISTORY
+  // ==========================================================================
   private bindShiftsEvents() {
     // Filter by operator
     document.getElementById('shifts-filter-operator')?.addEventListener('change', (e) => {
@@ -564,7 +964,7 @@ class OptionsController {
       const btn = document.getElementById('btn-recalculate-shifts') as HTMLButtonElement | null;
       if (btn) {
         btn.disabled = true;
-        btn.innerHTML = '<span class="icon">⏳</span> Пересчет...';
+        btn.innerHTML = '<span class="btn-icon">⏳</span> Пересчет...';
       }
       try {
         const res = await chrome.runtime.sendMessage({ type: 'RECALCULATE_SHIFTS_EARNINGS' });
@@ -576,7 +976,7 @@ class OptionsController {
       } finally {
         if (btn) {
           btn.disabled = false;
-          btn.innerHTML = '<span class="icon">🔄</span> Пересчитать выручку';
+          btn.innerHTML = '<span class="btn-icon">🔄</span> Пересчитать выручку';
         }
       }
     });
@@ -587,60 +987,18 @@ class OptionsController {
     });
 
     // Shift modal close/cancel
-    document.getElementById('btn-cancel-shift')?.addEventListener('click', () => {
-      this.closeShiftModal();
-    });
-    document.getElementById('modal-shift-close')?.addEventListener('click', () => {
-      this.closeShiftModal();
-    });
-
-    // Orders modal close
-    document.getElementById('btn-close-shift-orders')?.addEventListener('click', () => {
-      this.closeShiftOrdersModal();
-    });
-    document.getElementById('modal-shift-orders-close')?.addEventListener('click', () => {
-      this.closeShiftOrdersModal();
-    });
-
-    // Shift modal input changes for live duration preview
-    const startInp = document.getElementById('shift-modal-start') as HTMLInputElement | null;
-    const endInp = document.getElementById('shift-modal-end') as HTMLInputElement | null;
-    const updatePreview = () => {
-      const sVal = startInp?.value;
-      const eVal = endInp?.value;
-      const previewEl = document.getElementById('shift-modal-calc-preview');
-      if (!previewEl) return;
-      if (sVal && eVal) {
-        const sTime = new Date(sVal).getTime();
-        const eTime = new Date(eVal).getTime();
-        if (eTime > sTime) {
-          const dur = eTime - sTime;
-          const orders = this.state?.cache?.orders || [];
-          const percent = this.state?.settings?.sellerSharePercent ?? 10.0;
-          const earnings = calculateShiftEarnings(sTime, eTime, orders, percent);
-          const parts: string[] = [];
-          for (const [c, amt] of Object.entries(earnings.turnoverByCurrency)) {
-            parts.push(formatMoney(amt, c));
-          }
-          const turnStr = parts.length > 0 ? parts.join(', ') : '0 ₽';
-          previewEl.textContent = `Длительность: ${formatDuration(dur)} • Найдено заказов: ${earnings.ordersCount} (Оборот: ${turnStr})`;
-          previewEl.style.color = '#34d399';
-          return;
-        }
-      }
-      previewEl.textContent = 'Длительность и заказы будут автоматически рассчитаны по указанному времени.';
-      previewEl.style.color = 'var(--text-muted)';
-    };
-    startInp?.addEventListener('input', updatePreview);
-    endInp?.addEventListener('input', updatePreview);
+    const closeModal = () => this.closeShiftModal();
+    document.getElementById('btn-shift-modal-cancel')?.addEventListener('click', closeModal);
+    document.getElementById('shift-modal-close')?.addEventListener('click', closeModal);
 
     // Save shift modal button
-    document.getElementById('btn-save-shift')?.addEventListener('click', async () => {
-      const idInp = (document.getElementById('shift-modal-id') as HTMLInputElement)?.value;
-      const opInp = (document.getElementById('shift-modal-operator') as HTMLInputElement)?.value?.trim();
-      const sInp = (document.getElementById('shift-modal-start') as HTMLInputElement)?.value;
-      const eInp = (document.getElementById('shift-modal-end') as HTMLInputElement)?.value;
-      const noteInp = (document.getElementById('shift-modal-note') as HTMLInputElement)?.value?.trim();
+    document.getElementById('btn-shift-modal-save')?.addEventListener('click', async () => {
+      const idInp = (document.getElementById('modal-shift-id') as HTMLInputElement)?.value;
+      const opInp = (document.getElementById('modal-shift-operator') as HTMLInputElement)?.value?.trim();
+      const sInp = (document.getElementById('modal-shift-start') as HTMLInputElement)?.value;
+      const eInp = (document.getElementById('modal-shift-end') as HTMLInputElement)?.value;
+      const rateInp = parseFloat((document.getElementById('modal-shift-rate') as HTMLInputElement)?.value || '10') || 10;
+      const noteInp = (document.getElementById('modal-shift-note') as HTMLInputElement)?.value?.trim();
 
       if (!opInp) {
         alert('Пожалуйста, укажите имя сменщика/оператора.');
@@ -660,8 +1018,7 @@ class OptionsController {
 
       const dur = eTime - sTime;
       const orders = this.state?.cache?.orders || [];
-      const percent = this.state?.settings?.sellerSharePercent ?? 10.0;
-      const earnings = calculateShiftEarnings(sTime, eTime, orders, percent);
+      const earnings = calculateShiftEarnings(sTime, eTime, orders, rateInp);
 
       const shift: CompletedShift = {
         id: idInp || `shift_${sTime}_${Math.random().toString(36).slice(2, 8)}`,
@@ -669,7 +1026,7 @@ class OptionsController {
         startTime: sTime,
         endTime: eTime,
         duration: dur,
-        sellerSharePercent: percent,
+        sellerSharePercent: rateInp,
         earnings,
         note: noteInp || undefined
       };
@@ -689,7 +1046,7 @@ class OptionsController {
 
     // Populate operators filter dropdown
     const filterSelect = document.getElementById('shifts-filter-operator') as HTMLSelectElement | null;
-    const modalDatalist = document.getElementById('operator-modal-suggestions');
+    const modalDatalist = document.getElementById('modal-operators-datalist');
 
     const knownOperators = new Set<string>();
     if (this.state.settings.operatorsList) {
@@ -700,24 +1057,62 @@ class OptionsController {
     });
 
     if (filterSelect) {
-      const current = this.shiftsOperatorFilter;
-      filterSelect.innerHTML = '<option value="all">Все сменщики</option>';
-      for (const op of Array.from(knownOperators).sort()) {
-        const opt = document.createElement('option');
-        opt.value = op;
-        opt.textContent = op;
-        if (op === current) opt.selected = true;
-        filterSelect.appendChild(opt);
-      }
+      const cur = this.shiftsOperatorFilter;
+      filterSelect.innerHTML = '<option value="all">Все сменщики</option>' +
+        Array.from(knownOperators).map(op => `<option value="${op}" ${op === cur ? 'selected' : ''}>${op}</option>`).join('');
     }
 
     if (modalDatalist) {
-      modalDatalist.innerHTML = Array.from(knownOperators)
-        .map(op => `<option value="${op}">`)
-        .join('');
+      modalDatalist.innerHTML = Array.from(knownOperators).map(op => `<option value="${op}"></option>`).join('');
     }
 
+    this.renderShiftsActiveBanner();
     this.renderShiftsTable();
+  }
+
+  private async renderShiftsActiveBanner() {
+    const banner = document.getElementById('shifts-active-banner');
+    if (!banner) return;
+    try {
+      const res = await chrome.runtime.sendMessage({ type: 'GET_SHIFT_STATE' });
+      const shiftState = res?.shiftState;
+
+      const liveBadgeNav = document.getElementById('nav-badge-shift-live');
+
+      if (!shiftState || !shiftState.shiftActive || !shiftState.shiftStartTime) {
+        banner.style.display = 'none';
+        if (liveBadgeNav) liveBadgeNav.style.display = 'none';
+        return;
+      }
+
+      banner.style.display = 'flex';
+      if (liveBadgeNav) liveBadgeNav.style.display = 'inline-block';
+
+      const opEl = document.getElementById('shifts-active-op');
+      const startEl = document.getElementById('shifts-active-start');
+      const timerEl = document.getElementById('shifts-active-timer');
+      const earningsEl = document.getElementById('shifts-active-earnings');
+
+      const opName = shiftState.currentOperator || 'Оператор 1';
+      if (opEl) opEl.textContent = `👤 ${opName}`;
+      if (startEl) startEl.textContent = `Старт: ${formatTimeOnly(shiftState.shiftStartTime)}`;
+
+      const elapsed = Math.max(0, Date.now() - shiftState.shiftStartTime);
+      if (timerEl) timerEl.textContent = formatDuration(elapsed);
+
+      const orders = this.state?.cache?.orders || [];
+      const percent = this.state?.settings?.sellerSharePercent ?? 12.0;
+      const earnings = calculateShiftEarnings(shiftState.shiftStartTime, Date.now(), orders, percent);
+
+      const parts: string[] = [];
+      for (const [c, amt] of Object.entries(earnings.turnoverByCurrency)) {
+        if (amt > 0) parts.push(formatMoney(amt, c));
+      }
+      const turnStr = parts.length > 0 ? parts.join(', ') : '0 ₽';
+      if (earningsEl) earningsEl.textContent = `${earnings.ordersCount} зак. • Оборот: ${turnStr}`;
+    } catch {
+      // ignore
+    }
   }
 
   private renderShiftsTable() {
@@ -729,26 +1124,27 @@ class OptionsController {
 
     // Filter by operator
     if (this.shiftsOperatorFilter !== 'all') {
-      filtered = filtered.filter(s => s.operatorName === this.shiftsOperatorFilter);
+      filtered = filtered.filter(s => (s.operatorName || 'Оператор 1') === this.shiftsOperatorFilter);
     }
 
     // Filter by period
     const now = new Date();
     if (this.shiftsPeriodFilter === 'today') {
-      const startToday = getUserStartOfToday();
-      filtered = filtered.filter(s => s.startTime >= startToday);
+      const todayStart = getUserStartOfToday().getTime();
+      filtered = filtered.filter(s => s.startTime >= todayStart);
     } else if (this.shiftsPeriodFilter === '7days') {
-      const start7 = getUserStartOfDaysAgo(7);
-      filtered = filtered.filter(s => s.startTime >= start7);
+      const d7 = getUserStartOfDaysAgo(7).getTime();
+      filtered = filtered.filter(s => s.startTime >= d7);
     } else if (this.shiftsPeriodFilter === '30days') {
-      const start30 = getUserStartOfDaysAgo(30);
-      filtered = filtered.filter(s => s.startTime >= start30);
+      const d30 = getUserStartOfDaysAgo(30).getTime();
+      filtered = filtered.filter(s => s.startTime >= d30);
     } else if (this.shiftsPeriodFilter === 'this_month') {
-      filtered = filtered.filter(s => {
-        const d = new Date(s.startTime);
-        return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
-      });
+      const mStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+      filtered = filtered.filter(s => s.startTime >= mStart);
     }
+
+    // Sort newest first
+    filtered.sort((a, b) => b.startTime - a.startTime);
 
     // Update Overview Metric Cards
     let totalDurationMs = 0;
@@ -757,7 +1153,8 @@ class OptionsController {
     let totalOrdersCount = 0;
 
     for (const s of filtered) {
-      totalDurationMs += s.duration || 0;
+      const dur = s.duration || (s.endTime && s.startTime ? Math.max(0, s.endTime - s.startTime) : 0);
+      totalDurationMs += dur;
       totalOrdersCount += s.earnings?.ordersCount || 0;
       for (const [curr, amt] of Object.entries(s.earnings?.turnoverByCurrency || {})) {
         totalTurnoverByCurr[curr] = (totalTurnoverByCurr[curr] || 0) + amt;
@@ -811,7 +1208,8 @@ class OptionsController {
         year: 'numeric'
       });
       const intervalStr = `${formatTimeOnly(s.startTime)} — ${formatTimeOnly(s.endTime)}`;
-      const durStr = formatDuration(s.duration);
+      const durMs = s.duration || (s.endTime && s.startTime ? Math.max(0, s.endTime - s.startTime) : 0);
+      const durStr = formatDuration(durMs);
 
       const turnoverParts = Object.entries(s.earnings?.turnoverByCurrency || {})
         .filter(([, a]) => a > 0)
@@ -824,31 +1222,31 @@ class OptionsController {
       const shareFormatted = shareParts.length > 0 ? shareParts.join('<br>') : '0 ₽';
 
       const ordersBtn = (s.earnings?.ordersCount || 0) > 0
-        ? `<button class="btn-orders-count" data-shift-id="${s.id}">${s.earnings.ordersCount} шт. 🔍</button>`
+        ? `<button class="btn btn-xs btn-outline btn-shift-orders-inspect" data-shift-id="${s.id}">${s.earnings.ordersCount} шт. 🔍</button>`
         : `<span style="color: var(--text-muted);">0</span>`;
 
       return `
         <tr>
-          <td><span style="font-weight: 500;">${dateFormatted}</span></td>
+          <td><strong>${dateFormatted}</strong></td>
           <td><span class="operator-badge">👤 ${s.operatorName || 'Оператор 1'}</span></td>
-          <td style="font-variant-numeric: tabular-nums;">${intervalStr}</td>
-          <td style="font-variant-numeric: tabular-nums; font-weight: 600; color: #34d399;">${durStr}</td>
+          <td class="tabular-nums">${intervalStr}</td>
+          <td class="tabular-nums" style="font-weight: 600; color: #34D399;">${durStr}</td>
           <td>${ordersBtn}</td>
-          <td style="font-variant-numeric: tabular-nums; font-weight: 600;">${turnoverFormatted}</td>
-          <td style="font-variant-numeric: tabular-nums; color: #34d399; font-weight: 600;">${shareFormatted}</td>
-          <td style="color: var(--text-muted); font-size: 12px; max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${s.note || '—'}</td>
-          <td>
-            <div style="display: flex; gap: 6px;">
-              <button class="btn btn-sm btn-outline btn-edit-shift" data-shift-id="${s.id}" title="Редактировать смену">✏️</button>
-              <button class="btn btn-sm btn-danger btn-delete-shift" data-shift-id="${s.id}" title="Удалить смену">🗑️</button>
+          <td class="tabular-nums" style="font-weight: 600;">${turnoverFormatted}</td>
+          <td class="tabular-nums" style="color: #34D399; font-weight: 600;">${shareFormatted}</td>
+          <td style="color: var(--text-muted); font-size: 11px; max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${s.note || '—'}</td>
+          <td style="text-align: right;">
+            <div style="display: inline-flex; gap: 6px;">
+              <button class="btn btn-xs btn-outline btn-edit-shift" data-shift-id="${s.id}" title="Редактировать смену">✏️</button>
+              <button class="btn btn-xs btn-danger-glow btn-delete-shift" data-shift-id="${s.id}" title="Удалить смену">🗑️</button>
             </div>
           </td>
         </tr>
       `;
     }).join('');
 
-    // Attach row button events
-    tbody.querySelectorAll('.btn-orders-count').forEach(btn => {
+    // Attach row events
+    tbody.querySelectorAll('.btn-shift-orders-inspect').forEach(btn => {
       btn.addEventListener('click', () => {
         const id = btn.getAttribute('data-shift-id');
         const shift = this.shifts.find(s => s.id === id);
@@ -867,184 +1265,165 @@ class OptionsController {
     tbody.querySelectorAll('.btn-delete-shift').forEach(btn => {
       btn.addEventListener('click', async () => {
         const id = btn.getAttribute('data-shift-id');
-        const shift = this.shifts.find(s => s.id === id);
-        if (id && confirm(`Удалить смену сменщика "${shift?.operatorName || 'Оператор'}" за ${new Date(shift?.startTime || 0).toLocaleDateString()}?`)) {
-          await chrome.runtime.sendMessage({
-            type: 'DELETE_SHIFT',
-            payload: { shiftId: id }
-          });
-          await this.refreshState();
-        }
+        if (!id) return;
+        if (!confirm('Вы уверены, что хотите удалить эту запись о смене?')) return;
+        await chrome.runtime.sendMessage({
+          type: 'DELETE_SHIFT',
+          payload: { shiftId: id }
+        });
+        await this.refreshState();
       });
     });
   }
 
   private openShiftModal(shift?: CompletedShift) {
-    const modal = document.getElementById('modal-shift');
-    const title = document.getElementById('modal-shift-title');
-    const idInp = document.getElementById('shift-modal-id') as HTMLInputElement | null;
-    const opInp = document.getElementById('shift-modal-operator') as HTMLInputElement | null;
-    const startInp = document.getElementById('shift-modal-start') as HTMLInputElement | null;
-    const endInp = document.getElementById('shift-modal-end') as HTMLInputElement | null;
-    const noteInp = document.getElementById('shift-modal-note') as HTMLInputElement | null;
-    const previewEl = document.getElementById('shift-modal-calc-preview');
-
+    const modal = document.getElementById('shift-modal');
     if (!modal) return;
 
-    const toLocalIso = (ts: number) => {
-      const d = new Date(ts);
-      const pad = (n: number) => String(n).padStart(2, '0');
-      return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-    };
+    const idInp = document.getElementById('modal-shift-id') as HTMLInputElement;
+    const opInp = document.getElementById('modal-shift-operator') as HTMLInputElement;
+    const sInp = document.getElementById('modal-shift-start') as HTMLInputElement;
+    const eInp = document.getElementById('modal-shift-end') as HTMLInputElement;
+    const rateInp = document.getElementById('modal-shift-rate') as HTMLInputElement;
+    const noteInp = document.getElementById('modal-shift-note') as HTMLTextAreaElement;
+    const titleEl = document.getElementById('shift-modal-title');
+    const delBtn = document.getElementById('btn-shift-modal-delete') as HTMLButtonElement | null;
 
     if (shift) {
-      if (title) title.textContent = 'Редактировать рабочую смену';
+      if (titleEl) titleEl.textContent = 'Редактирование смены';
       if (idInp) idInp.value = shift.id;
       if (opInp) opInp.value = shift.operatorName;
-      if (startInp) startInp.value = toLocalIso(shift.startTime);
-      if (endInp) endInp.value = toLocalIso(shift.endTime);
+      if (sInp) sInp.value = new Date(shift.startTime).toISOString().slice(0, 16);
+      if (eInp) eInp.value = new Date(shift.endTime).toISOString().slice(0, 16);
+      if (rateInp) rateInp.value = String(shift.sellerSharePercent || 10);
       if (noteInp) noteInp.value = shift.note || '';
+      if (delBtn) {
+        delBtn.style.display = 'inline-block';
+        delBtn.onclick = async () => {
+          if (confirm('Удалить эту смену?')) {
+            await chrome.runtime.sendMessage({ type: 'DELETE_SHIFT', payload: { shiftId: shift.id } });
+            this.closeShiftModal();
+            await this.refreshState();
+          }
+        };
+      }
     } else {
-      if (title) title.textContent = 'Добавить рабочую смену вручную';
+      if (titleEl) titleEl.textContent = 'Добавление смены вручную';
       if (idInp) idInp.value = '';
-      if (opInp) opInp.value = this.state?.settings?.lastOperator || 'Оператор 1';
-      const now = Date.now();
-      const eightHoursAgo = now - 8 * 3600 * 1000;
-      if (startInp) startInp.value = toLocalIso(eightHoursAgo);
-      if (endInp) endInp.value = toLocalIso(now);
+      if (opInp) opInp.value = this.state?.settings?.operatorsList?.[0] || 'Оператор 1';
+      const now = new Date();
+      const past = new Date(now.getTime() - 8 * 3600000);
+      if (sInp) sInp.value = past.toISOString().slice(0, 16);
+      if (eInp) eInp.value = now.toISOString().slice(0, 16);
+      if (rateInp) rateInp.value = String(this.state?.settings?.sellerSharePercent || 10);
       if (noteInp) noteInp.value = '';
-    }
-
-    if (previewEl) {
-      previewEl.textContent = 'Длительность и заказы будут автоматически рассчитаны по указанному времени.';
-      previewEl.style.color = 'var(--text-muted)';
+      if (delBtn) delBtn.style.display = 'none';
     }
 
     modal.style.display = 'flex';
   }
 
   private closeShiftModal() {
-    const modal = document.getElementById('modal-shift');
+    const modal = document.getElementById('shift-modal');
     if (modal) modal.style.display = 'none';
   }
 
   private viewShiftOrders(shift: CompletedShift) {
-    const modal = document.getElementById('modal-shift-orders');
-    const title = document.getElementById('modal-shift-orders-title');
-    const content = document.getElementById('shift-orders-list-content');
-    if (!modal || !content) return;
+    const drawer = document.getElementById('client-orders-drawer');
+    const titleEl = document.getElementById('client-drawer-title');
+    const summaryEl = document.getElementById('client-drawer-summary');
+    const tbody = document.getElementById('client-drawer-orders');
+    if (!drawer || !this.state) return;
 
-    if (title) {
-      title.textContent = `Заказы смены: ${shift.operatorName} (${new Date(shift.startTime).toLocaleDateString()})`;
-    }
+    const orders = (this.state.cache.orders || []).filter(o =>
+      o.timestamp >= shift.startTime && o.timestamp <= shift.endTime
+    );
 
-    const orderIdsSet = new Set((shift.earnings.orderIds || []).map(id => id.toUpperCase()));
-    const matchingOrders = (this.state?.cache?.orders || []).filter(o => orderIdsSet.has(o.id.toUpperCase()));
+    if (titleEl) titleEl.textContent = `Смена: ${shift.operatorName} (${formatDuration(shift.duration)})`;
 
-    if (matchingOrders.length === 0) {
-      content.innerHTML = `
-        <div style="padding: 16px; text-align: center; color: var(--text-muted);">
-          Номера заказов: ${Array.from(orderIdsSet).join(', ') || 'нет'}<br>
-          (Подробные карточки заказов не найдены в текущем кеше. Выполните «Обновить данные» на Дашборде).
+    const parts = Object.entries(shift.earnings?.turnoverByCurrency || {}).map(([c, amt]) => formatMoney(amt, c));
+    const turnStr = parts.length > 0 ? parts.join(' • ') : '0 ₽';
+
+    if (summaryEl) {
+      summaryEl.innerHTML = `
+        <div>
+          <div style="font-size:11px; color:var(--text-muted);">Заказов за смену:</div>
+          <div style="font-size:16px; font-weight:700; color:#fff;">${orders.length}</div>
+        </div>
+        <div>
+          <div style="font-size:11px; color:var(--text-muted);">Оборот смены:</div>
+          <div style="font-size:16px; font-weight:700; color:var(--accent-emerald);">${turnStr}</div>
+        </div>
+        <div>
+          <div style="font-size:11px; color:var(--text-muted);">Ставка:</div>
+          <div style="font-size:16px; font-weight:700; color:#fff;">${shift.sellerSharePercent}%</div>
         </div>
       `;
-    } else {
-      content.innerHTML = `
-        <table class="data-table" style="width: 100%;">
-          <thead>
-            <tr>
-              <th>ID</th>
-              <th>Дата</th>
-              <th>Покупатель</th>
-              <th>Описание товара</th>
-              <th>Сумма</th>
-              <th>Статус</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${matchingOrders.map(o => `
-              <tr>
-                <td><strong>#${o.id}</strong></td>
-                <td>${o.dateStr}</td>
-                <td>${o.buyerUsername || '—'}</td>
-                <td>${o.description || '—'}</td>
-                <td style="font-weight: 600; color: #34d399;">${formatMoney(o.price, o.currency)}</td>
-                <td><span class="stat-badge">${o.status}</span></td>
-              </tr>
-            `).join('')}
-          </tbody>
-        </table>
-      `;
     }
 
-    modal.style.display = 'flex';
-  }
+    if (tbody) {
+      if (orders.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; padding:20px; color:var(--text-muted);">Заказы в указанный интервал не найдены</td></tr>`;
+      } else {
+        tbody.innerHTML = orders.map(o => {
+          const statusPill = o.status === 'closed'
+            ? '<span class="status-pill closed">Закрыт</span>'
+            : (o.status === 'paid' ? '<span class="status-pill paid">Оплачен</span>' : '<span class="status-pill refunded">Возврат</span>');
+          return `
+            <tr>
+              <td><strong style="font-family:var(--font-mono); font-size:11px;">#${o.id}</strong></td>
+              <td>${o.dateStr}</td>
+              <td>${o.title}</td>
+              <td class="tabular-nums" style="font-weight:600;">${formatMoney(o.price, o.currency)}</td>
+              <td>${statusPill}</td>
+            </tr>
+          `;
+        }).join('');
+      }
+    }
 
-  private closeShiftOrdersModal() {
-    const modal = document.getElementById('modal-shift-orders');
-    if (modal) modal.style.display = 'none';
+    drawer.style.display = 'flex';
   }
 
   private exportShiftsCsv() {
     if (this.shifts.length === 0) {
-      alert('История смен пуста, нечего экспортировать.');
+      alert('История смен пуста!');
       return;
     }
 
-    const headers = ['ID', 'Дата', 'Сменщик', 'Начало', 'Конец', 'Длительность (мс)', 'Длительность (формат)', 'Заказов', 'Оборот', 'Доля', 'Заметка'];
-    const rows: string[] = [];
-    rows.push(headers.join(';'));
+    const headers = ['ID', 'Оператор', 'Начало', 'Окончание', 'Длительность (мин)', 'Заказов', 'Оборот', 'Доля', 'Заметка'];
+    const rows = this.shifts.map(s => {
+      const turnParts = Object.entries(s.earnings?.turnoverByCurrency || {}).map(([c, a]) => `${a} ${c}`).join('; ');
+      const shareParts = Object.entries(s.earnings?.sellerShareByCurrency || {}).map(([c, a]) => `${a} ${c}`).join('; ');
+      const durMins = Math.round((s.duration || 0) / 60000);
 
-    for (const s of this.shifts) {
-      const dateStr = new Date(s.startTime).toLocaleDateString('ru-RU');
-      const startStr = formatTimeOnly(s.startTime);
-      const endStr = formatTimeOnly(s.endTime);
-      const durStr = formatDuration(s.duration);
+      return [
+        `"${s.id}"`,
+        `"${s.operatorName || ''}"`,
+        `"${new Date(s.startTime).toLocaleString('ru-RU')}"`,
+        `"${new Date(s.endTime).toLocaleString('ru-RU')}"`,
+        durMins,
+        s.earnings?.ordersCount || 0,
+        `"${turnParts}"`,
+        `"${shareParts}"`,
+        `"${(s.note || '').replace(/"/g, '""')}"`
+      ].join(',');
+    });
 
-      const turnoverParts = Object.entries(s.earnings?.turnoverByCurrency || {})
-        .map(([c, a]) => `${a} ${c}`);
-      const turnoverStr = turnoverParts.length > 0 ? turnoverParts.join(', ') : '0';
-
-      const shareParts = Object.entries(s.earnings?.sellerShareByCurrency || {})
-        .map(([c, a]) => `${a} ${c}`);
-      const shareStr = shareParts.length > 0 ? shareParts.join(', ') : '0';
-
-      const noteClean = (s.note || '').replace(/[\r\n;]/g, ' ');
-
-      const row = [
-        s.id,
-        dateStr,
-        `"${s.operatorName.replace(/"/g, '""')}"`,
-        startStr,
-        endStr,
-        String(s.duration),
-        durStr,
-        String(s.earnings?.ordersCount || 0),
-        `"${turnoverStr}"`,
-        `"${shareStr}"`,
-        `"${noteClean.replace(/"/g, '""')}"`
-      ];
-      rows.push(row.join(';'));
-    }
-
-    const csvContent = '\uFEFF' + rows.join('\r\n'); // UTF-8 BOM for Excel
+    const csvContent = '\uFEFF' + [headers.join(','), ...rows].join('\n');
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `fanpay-shifts-history-${new Date().toISOString().slice(0, 10)}.csv`;
-    link.click();
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `fanpay_shifts_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
     URL.revokeObjectURL(url);
   }
 
-  // --- 2. ORDERS ---
+  // ==========================================================================
+  // 3. ORDERS
+  // ==========================================================================
   private bindOrdersEvents() {
-    const searchInput = document.getElementById('orders-search') as HTMLInputElement;
-    searchInput?.addEventListener('input', (e) => {
-      this.orderSearchQuery = (e.target as HTMLInputElement).value.toLowerCase();
-      this.renderOrders();
-    });
-
     document.querySelectorAll('.btn-filter').forEach(btn => {
       btn.addEventListener('click', () => {
         document.querySelectorAll('.btn-filter').forEach(b => b.classList.remove('active'));
@@ -1052,6 +1431,11 @@ class OptionsController {
         this.orderPeriodFilter = btn.getAttribute('data-period') || 'all';
         this.renderOrders();
       });
+    });
+
+    document.getElementById('orders-search')?.addEventListener('input', (e) => {
+      this.orderSearchQuery = (e.target as HTMLInputElement).value.trim().toLowerCase();
+      this.renderOrders();
     });
   }
 
@@ -1063,28 +1447,29 @@ class OptionsController {
 
     let orders = [...this.state.cache.orders];
 
-    // Filter by period in local user timezone
+    // Period filter
+    const now = new Date();
     if (this.orderPeriodFilter === 'today') {
-      const startToday = getUserStartOfToday();
-      orders = orders.filter(o => o.timestamp >= startToday);
+      const todayStart = getUserStartOfToday().getTime();
+      orders = orders.filter(o => o.timestamp >= todayStart);
     } else if (this.orderPeriodFilter === '7days') {
-      const start7 = getUserStartOfDaysAgo(7);
-      orders = orders.filter(o => o.timestamp >= start7);
+      const d7 = getUserStartOfDaysAgo(7).getTime();
+      orders = orders.filter(o => o.timestamp >= d7);
     } else if (this.orderPeriodFilter === '30days') {
-      const start30 = getUserStartOfDaysAgo(30);
-      orders = orders.filter(o => o.timestamp >= start30);
+      const d30 = getUserStartOfDaysAgo(30).getTime();
+      orders = orders.filter(o => o.timestamp >= d30);
     } else if (this.orderPeriodFilter === '90days') {
-      const start90 = getUserStartOfDaysAgo(90);
-      orders = orders.filter(o => o.timestamp >= start90);
+      const d90 = getUserStartOfDaysAgo(90).getTime();
+      orders = orders.filter(o => o.timestamp >= d90);
     }
 
-    // Filter by search query
+    // Search query filter
     if (this.orderSearchQuery) {
       orders = orders.filter(o =>
         o.id.toLowerCase().includes(this.orderSearchQuery) ||
-        o.buyerUsername.toLowerCase().includes(this.orderSearchQuery) ||
-        String(o.buyerId).includes(this.orderSearchQuery) ||
-        o.description.toLowerCase().includes(this.orderSearchQuery)
+        ((o.buyerUsername || (o as any).buyer) && (o.buyerUsername || (o as any).buyer).toLowerCase().includes(this.orderSearchQuery)) ||
+        ((o.description || (o as any).title) && (o.description || (o as any).title).toLowerCase().includes(this.orderSearchQuery)) ||
+        (o.buyerId && String(o.buyerId).includes(this.orderSearchQuery))
       );
     }
 
@@ -1097,34 +1482,35 @@ class OptionsController {
     if (emptyBox) emptyBox.style.display = 'none';
 
     tbody.innerHTML = orders.map(o => {
-      const statusBadge =
-        o.status === 'paid' ? '<span class="order-status-badge status-paid">Оплачен</span>' :
-        o.status === 'refunded' ? '<span class="order-status-badge status-refunded">Возврат</span>' :
-        o.status === 'closed' ? '<span class="order-status-badge status-closed">Закрыт</span>' :
-        '<span class="order-status-badge status-unknown">Неизвестен</span>';
-
-      const priceDisplay = o.price !== null
-        ? `<strong>${formatMoney(o.price, o.currency)}</strong>`
-        : `<span style="color:#ef4444; font-size:12px; font-weight:600; cursor:help;" title="${o.priceParseError || 'Сумма не определена в HTML'}">Не определена ⚠️</span>`;
-
+      const statusPill = o.status === 'closed'
+        ? '<span class="status-pill closed">Закрыт</span>'
+        : (o.status === 'paid' ? '<span class="status-pill paid">Оплачен</span>' : '<span class="status-pill refunded">Возврат</span>');
+      const buyerName = o.buyerUsername || (o as any).buyer || (o.buyerId ? `ID ${o.buyerId}` : 'Покупатель');
+      const itemTitle = o.description || (o as any).title || '—';
       return `
         <tr>
-          <td><strong>#${o.id}</strong></td>
-          <td>${o.dateStr}</td>
-          <td><strong>${o.buyerUsername}</strong> <small style="color:#94a3b8;">(ID ${o.buyerId})</small></td>
-          <td>${o.description}</td>
-          <td>${priceDisplay}</td>
-          <td>${statusBadge}</td>
+          <td><strong style="font-family:var(--font-mono); font-size:11px;">#${o.id}</strong></td>
+          <td style="white-space:nowrap;">${o.dateStr}</td>
+          <td><strong>${buyerName}</strong></td>
+          <td style="max-width:320px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${itemTitle}</td>
+          <td class="tabular-nums" style="font-weight:600; color:var(--text-primary);">${formatMoney(o.price, o.currency)}</td>
+          <td>${statusPill}</td>
         </tr>
       `;
     }).join('');
   }
 
-  // --- 3. CLIENTS ---
+  // ==========================================================================
+  // 4. CRM CLIENTS
+  // ==========================================================================
   private bindClientsEvents() {
-    const searchInput = document.getElementById('clients-search') as HTMLInputElement;
-    searchInput?.addEventListener('input', (e) => {
-      this.clientSearchQuery = (e.target as HTMLInputElement).value.toLowerCase();
+    document.getElementById('clients-search')?.addEventListener('input', (e) => {
+      this.clientSearchQuery = (e.target as HTMLInputElement).value.trim().toLowerCase();
+      this.renderClients();
+    });
+
+    document.getElementById('clients-sort-select')?.addEventListener('change', (e) => {
+      this.clientsSort = (e.target as HTMLSelectElement).value;
       this.renderClients();
     });
   }
@@ -1135,7 +1521,6 @@ class OptionsController {
     const emptyBox = document.getElementById('clients-empty');
     if (!tbody) return;
 
-    // Aggregated strictly by buyerId
     let clients = FunPayClientsAdapter.fromOrders(this.state.cache.orders);
 
     if (this.clientSearchQuery) {
@@ -1143,6 +1528,22 @@ class OptionsController {
         c.buyerUsername.toLowerCase().includes(this.clientSearchQuery) ||
         String(c.buyerId).includes(this.clientSearchQuery)
       );
+    }
+
+    // Sort clients
+    if (this.clientsSort === 'orders') {
+      clients.sort((a, b) => b.ordersCount - a.ordersCount);
+    } else if (this.clientsSort === 'recent') {
+      clients.sort((a, b) => (b.lastOrderDate || '').localeCompare(a.lastOrderDate || ''));
+    } else if (this.clientsSort === 'name') {
+      clients.sort((a, b) => a.buyerUsername.localeCompare(b.buyerUsername));
+    } else {
+      // turnover sort
+      clients.sort((a, b) => {
+        const sumA = Object.values(a.spentByCurrency).reduce((s, x) => s + x, 0);
+        const sumB = Object.values(b.spentByCurrency).reduce((s, x) => s + x, 0);
+        return sumB - sumA;
+      });
     }
 
     if (clients.length === 0) {
@@ -1158,17 +1559,24 @@ class OptionsController {
         .map(([curr, amt]) => formatMoney(amt, curr))
         .join(' • ') || '0 ₽';
 
+      const isVip = c.ordersCount >= 5 || Object.values(c.spentByCurrency).some(amt => amt >= 10000);
+      const isRegular = c.ordersCount >= 2;
+      const tierBadge = isVip
+        ? '<span class="loyalty-tag vip">VIP</span>'
+        : (isRegular ? '<span class="loyalty-tag regular">Regular</span>' : '<span class="loyalty-tag new">New</span>');
+
       return `
         <tr>
-          <td><strong>#${c.buyerId}</strong></td>
           <td><strong>${c.buyerUsername}</strong></td>
-          <td>${c.ordersCount}</td>
-          <td>${c.refundedCount > 0 ? `<span style="color:#f87171; font-weight:600;">${c.refundedCount}</span>` : '0'}</td>
-          <td><strong>${spentSummary}</strong></td>
+          <td><strong style="font-family:var(--font-mono); color:var(--text-muted);">#${c.buyerId}</strong></td>
+          <td>${tierBadge}</td>
+          <td><strong>${c.ordersCount}</strong></td>
+          <td>${c.refundedCount > 0 ? `<span style="color:#f87171; font-weight:600;">${c.refundedCount}</span>` : '<span style="color:var(--text-muted);">0</span>'}</td>
+          <td class="tabular-nums" style="font-weight:600; color:var(--text-primary);">${spentSummary}</td>
           <td>${c.lastOrderDate}</td>
-          <td>
-            <button class="btn btn-sm btn-outline btn-client-orders" data-client-id="${c.buyerId}">
-              Заказы
+          <td style="text-align: right;">
+            <button class="btn btn-xs btn-outline btn-client-orders" data-client-id="${c.buyerId}">
+              История покупок
             </button>
           </td>
         </tr>
@@ -1176,636 +1584,450 @@ class OptionsController {
     }).join('');
 
     tbody.querySelectorAll('.btn-client-orders').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const clientId = btn.getAttribute('data-client-id') || '';
-        this.orderSearchQuery = clientId;
-        const searchInput = document.getElementById('orders-search') as HTMLInputElement;
-        if (searchInput) searchInput.value = clientId;
-        this.switchTab('orders');
+      btn.addEventListener('click', (e) => {
+        const id = (e.currentTarget as HTMLElement).getAttribute('data-client-id');
+        if (id) this.openClientDrawer(id);
       });
     });
   }
 
-  // --- 4. TEMPLATES ---
+  private openClientDrawer(clientId: string) {
+    const drawer = document.getElementById('client-orders-drawer');
+    const titleEl = document.getElementById('client-drawer-title');
+    const summaryEl = document.getElementById('client-drawer-summary');
+    const tbody = document.getElementById('client-drawer-orders');
+    if (!drawer || !this.state) return;
+
+    const orders = (this.state.cache.orders || []).filter(o => String(o.buyerId) === String(clientId));
+    if (orders.length === 0) return;
+
+    const clientName = orders[0].buyer || `ID ${clientId}`;
+    if (titleEl) titleEl.textContent = `${clientName} (#${clientId})`;
+
+    let totalSpentByCurr: Record<string, number> = {};
+    let refunds = 0;
+    for (const o of orders) {
+      if (o.status === 'closed' || o.status === 'paid') {
+        const c = normalizeCurrency(o.currency);
+        totalSpentByCurr[c] = (totalSpentByCurr[c] || 0) + (o.price || 0);
+      } else if (o.status === 'refunded') {
+        refunds++;
+      }
+    }
+    const spentStr = Object.entries(totalSpentByCurr).map(([c, amt]) => formatMoney(amt, c)).join(' • ') || '0 ₽';
+
+    if (summaryEl) {
+      summaryEl.innerHTML = `
+        <div>
+          <div style="font-size:11px; color:var(--text-muted);">Заказов:</div>
+          <div style="font-size:16px; font-weight:700; color:#fff;">${orders.length}</div>
+        </div>
+        <div>
+          <div style="font-size:11px; color:var(--text-muted);">Сумма покупок:</div>
+          <div style="font-size:16px; font-weight:700; color:var(--accent-emerald);">${spentStr}</div>
+        </div>
+        <div>
+          <div style="font-size:11px; color:var(--text-muted);">Возвратов:</div>
+          <div style="font-size:16px; font-weight:700; color:${refunds > 0 ? '#f87171' : '#fff'};">${refunds}</div>
+        </div>
+      `;
+    }
+
+    if (tbody) {
+      tbody.innerHTML = orders.map(o => {
+        const statusPill = o.status === 'closed'
+          ? '<span class="status-pill closed">Закрыт</span>'
+          : (o.status === 'paid' ? '<span class="status-pill paid">Оплачен</span>' : '<span class="status-pill refunded">Возврат</span>');
+        return `
+          <tr>
+            <td><strong style="font-family:var(--font-mono); font-size:11px;">#${o.id}</strong></td>
+            <td>${o.dateStr}</td>
+            <td>${o.title}</td>
+            <td class="tabular-nums" style="font-weight:600;">${formatMoney(o.price, o.currency)}</td>
+            <td>${statusPill}</td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    drawer.style.display = 'flex';
+  }
+
+  // ==========================================================================
+  // 5. TEMPLATES
+  // ==========================================================================
   private bindTemplatesEvents() {
-    const filterSelect = document.getElementById('templates-profile-filter') as HTMLSelectElement;
-    filterSelect?.addEventListener('change', (e) => {
+    document.getElementById('templates-profile-filter')?.addEventListener('change', (e) => {
       this.templateProfileFilter = (e.target as HTMLSelectElement).value;
       this.renderTemplates();
     });
 
     document.getElementById('btn-add-template')?.addEventListener('click', () => {
-      this.openTemplateModal();
+      const name = prompt('Название нового шаблона:');
+      if (!name) return;
+      const text = prompt('Текст сообщения:');
+      if (!text) return;
+
+      const profileId = this.templateProfileFilter === 'all'
+        ? (this.state?.settings.activeProfileId || 'default')
+        : this.templateProfileFilter;
+
+      const newTpl: Template = {
+        id: `tpl_${Date.now()}`,
+        profileId,
+        name,
+        text
+      };
+
+      chrome.runtime.sendMessage({
+        type: 'SAVE_TEMPLATE',
+        payload: { template: newTpl }
+      }, () => this.refreshState());
     });
   }
 
   private renderTemplates() {
     if (!this.state) return;
-    const container = document.getElementById('templates-list-container');
     const filterSelect = document.getElementById('templates-profile-filter') as HTMLSelectElement;
-    if (!container || !filterSelect) return;
+    const container = document.getElementById('templates-list-container');
+    if (!filterSelect || !container) return;
 
-    filterSelect.innerHTML = `<option value="all">Все профили</option>` +
-      this.state.profiles.map(p => `<option value="${p.id}" ${this.templateProfileFilter === p.id ? 'selected' : ''}>${p.name}</option>`).join('');
+    // Populate profiles dropdown
+    const activeProf = this.templateProfileFilter;
+    filterSelect.innerHTML = '<option value="all">Все профили</option>' +
+      this.state.profiles.map(p => `<option value="${p.id}" ${p.id === activeProf ? 'selected' : ''}>${p.name}</option>`).join('');
 
-    let templates = [...this.state.templates];
+    let tpls = this.state.templates;
     if (this.templateProfileFilter !== 'all') {
-      templates = templates.filter(t => t.profileId === this.templateProfileFilter || t.profileId === 'profile-common');
+      tpls = tpls.filter(t => t.profileId === this.templateProfileFilter);
     }
-    templates.sort((a, b) => a.sortOrder - b.sortOrder);
 
-    if (templates.length === 0) {
-      container.innerHTML = `<div class="card empty-state" style="padding:20px; text-align:center;">Нет шаблонов для выбранного профиля.</div>`;
+    if (tpls.length === 0) {
+      container.innerHTML = '<div style="color:var(--text-muted); text-align:center; padding:30px;">Шаблоны не найдены</div>';
       return;
     }
 
-    container.innerHTML = templates.map(t => {
-      const prof = this.state?.profiles.find(p => p.id === t.profileId);
+    container.innerHTML = tpls.map(t => {
+      const keycap = t.key ? `<span class="tpl-keycap">${t.key}</span>` : '';
       return `
-        <div class="template-item-card">
-          <div class="template-main-info">
-            <span class="template-hotkey-badge">${t.hotkey || '—'}</span>
-            <div class="template-text-block">
-              <span class="template-item-title">${t.name} <small style="color:#94a3b8;">(${prof?.name || 'Общий'})</small></span>
-              <span class="template-item-preview">${t.text}</span>
-            </div>
+        <div class="template-card">
+          <div class="tpl-header">
+            <span class="tpl-name">${t.name}</span>
+            ${keycap}
           </div>
-          <div class="template-actions">
-            <button class="btn btn-sm btn-outline btn-edit-template" data-id="${t.id}">✏️</button>
-            <button class="btn btn-sm btn-outline btn-copy-template" data-id="${t.id}" title="Дублировать">📋</button>
-            <button class="btn btn-sm btn-danger btn-delete-template" data-id="${t.id}">🗑️</button>
+          <div class="tpl-text-preview">${t.text}</div>
+          <div style="display:flex; justify-content:flex-end; gap:6px; margin-top:4px;">
+            <button class="btn btn-xs btn-outline btn-edit-tpl" data-id="${t.id}">Изменить</button>
+            <button class="btn btn-xs btn-danger-glow btn-del-tpl" data-id="${t.id}">Удалить</button>
           </div>
         </div>
       `;
     }).join('');
 
-    container.querySelectorAll('.btn-edit-template').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const id = btn.getAttribute('data-id');
-        const tmpl = this.state?.templates.find(t => t.id === id);
-        if (tmpl) this.openTemplateModal(tmpl);
-      });
-    });
-
-    container.querySelectorAll('.btn-copy-template').forEach(btn => {
-      btn.addEventListener('click', async () => {
-        const id = btn.getAttribute('data-id');
-        const tmpl = this.state?.templates.find(t => t.id === id);
-        if (tmpl) {
-          const duplicate: Template = {
-            ...tmpl,
-            id: `tmpl-${Date.now()}`,
-            name: `${tmpl.name} (Копия)`,
-            sortOrder: (tmpl.sortOrder || 0) + 1
-          };
-          await chrome.runtime.sendMessage({ type: 'SAVE_TEMPLATE', payload: duplicate });
-          await this.refreshState();
+    container.querySelectorAll('.btn-del-tpl').forEach(b => {
+      b.addEventListener('click', () => {
+        const id = b.getAttribute('data-id');
+        if (id && confirm('Удалить шаблон?')) {
+          chrome.runtime.sendMessage({ type: 'DELETE_TEMPLATE', payload: { templateId: id } }, () => this.refreshState());
         }
       });
     });
 
-    container.querySelectorAll('.btn-delete-template').forEach(btn => {
-      btn.addEventListener('click', async () => {
-        const id = btn.getAttribute('data-id');
-        if (id && confirm('Удалить этот шаблон?')) {
-          await chrome.runtime.sendMessage({ type: 'DELETE_TEMPLATE', payload: { templateId: id } });
-          await this.refreshState();
+    container.querySelectorAll('.btn-edit-tpl').forEach(b => {
+      b.addEventListener('click', () => {
+        const id = b.getAttribute('data-id');
+        const tpl = this.state?.templates.find(t => t.id === id);
+        if (!tpl) return;
+        const newText = prompt('Редактировать текст шаблона:', tpl.text);
+        if (newText !== null) {
+          tpl.text = newText;
+          chrome.runtime.sendMessage({ type: 'SAVE_TEMPLATE', payload: { template: tpl } }, () => this.refreshState());
         }
       });
     });
   }
 
-  // --- 5. HOTKEYS ---
+  // ==========================================================================
+  // 6. HOTKEYS
+  // ==========================================================================
   private bindHotkeysEvents() {
-    const select = document.getElementById('hotkeys-profile-select') as HTMLSelectElement;
-    select?.addEventListener('change', () => {
+    document.getElementById('hotkeys-profile-filter')?.addEventListener('change', () => {
       this.renderHotkeys();
     });
   }
 
   private renderHotkeys() {
     if (!this.state) return;
-    const select = document.getElementById('hotkeys-profile-select') as HTMLSelectElement;
-    const tbody = document.getElementById('hotkeys-table-body');
-    if (!select || !tbody) return;
+    const filterSelect = document.getElementById('hotkeys-profile-filter') as HTMLSelectElement;
+    const container = document.getElementById('hotkeys-list-container');
+    if (!filterSelect || !container) return;
 
-    const activeProfId = select.value || this.state.settings.selectedProfileId;
-    select.innerHTML = this.state.profiles.map(p => `
-      <option value="${p.id}" ${p.id === activeProfId ? 'selected' : ''}>${p.name}</option>
-    `).join('');
+    if (filterSelect.options.length === 0) {
+      filterSelect.innerHTML = this.state.profiles.map(p =>
+        `<option value="${p.id}" ${p.id === this.state?.settings.activeProfileId ? 'selected' : ''}>${p.name}</option>`
+      ).join('');
+    }
 
-    const templates = this.state.templates.filter(t => t.profileId === activeProfId || t.profileId === 'profile-common');
+    const currentProfileId = filterSelect.value || this.state.settings.activeProfileId;
+    const tpls = this.state.templates.filter(t => t.profileId === currentProfileId);
 
-    tbody.innerHTML = templates.map(t => `
-      <tr>
-        <td><strong class="template-hotkey-badge">${t.hotkey || 'Не назначен'}</strong></td>
-        <td><strong>${t.name}</strong></td>
-        <td style="max-width:320px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${t.text}</td>
-        <td>${t.enabled ? '<span style="color:#10b981;">Включен</span>' : '<span style="color:#ef4444;">Отключен</span>'}</td>
-        <td>
-          <button class="btn btn-sm btn-outline btn-edit-hotkey" data-id="${t.id}">Изменить</button>
-        </td>
-      </tr>
-    `).join('');
+    const keys = ['F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8'];
 
-    tbody.querySelectorAll('.btn-edit-hotkey').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const id = btn.getAttribute('data-id');
-        const tmpl = this.state?.templates.find(t => t.id === id);
-        if (tmpl) this.openTemplateModal(tmpl);
+    container.innerHTML = keys.map(k => {
+      const assigned = tpls.find(t => t.key === k);
+      const name = assigned ? assigned.name : '<span style="color:var(--text-muted);">Не назначен</span>';
+      return `
+        <div class="hotkey-slot-card">
+          <div style="display:flex; align-items:center; gap:10px;">
+            <span class="slot-keycap">${k}</span>
+            <span style="font-size:12px; font-weight:600;">${name}</span>
+          </div>
+          <button class="btn btn-xs btn-outline btn-assign-key" data-key="${k}">Назначить</button>
+        </div>
+      `;
+    }).join('');
+
+    container.querySelectorAll('.btn-assign-key').forEach(b => {
+      b.addEventListener('click', () => {
+        const k = b.getAttribute('data-key');
+        if (!k) return;
+        const choices = tpls.map(t => `${t.id}: ${t.name}`).join('\n');
+        const choice = prompt(`Выберите шаблон для ${k}:\n${choices}\n\nВведите ID шаблона (или оставьте пустым для сброса):`);
+        if (choice === null) return;
+
+        // Clear key from all templates in profile
+        tpls.forEach(t => {
+          if (t.key === k) {
+            delete t.key;
+            chrome.runtime.sendMessage({ type: 'SAVE_TEMPLATE', payload: { template: t } });
+          }
+        });
+
+        const target = tpls.find(t => t.id === choice.trim());
+        if (target) {
+          target.key = k;
+          chrome.runtime.sendMessage({ type: 'SAVE_TEMPLATE', payload: { template: target } }, () => this.refreshState());
+        } else {
+          this.refreshState();
+        }
       });
     });
   }
 
-  // --- 6. PROFILES ---
+  // ==========================================================================
+  // 7. PROFILES
+  // ==========================================================================
   private bindProfilesEvents() {
     document.getElementById('btn-add-profile')?.addEventListener('click', () => {
-      this.openProfileModal();
+      const name = prompt('Название нового профиля (например: "Dota 2"):');
+      if (!name) return;
+      const newProf: Profile = {
+        id: `prof_${Date.now()}`,
+        name,
+        isDefault: false,
+        hotkeys: []
+      };
+      chrome.runtime.sendMessage({ type: 'SAVE_PROFILE', payload: { profile: newProf } }, () => this.refreshState());
     });
   }
 
   private renderProfiles() {
     if (!this.state) return;
-    const container = document.getElementById('profiles-grid-container');
+    const container = document.getElementById('profiles-list-container');
     if (!container) return;
 
     container.innerHTML = this.state.profiles.map(p => {
-      const isActive = p.id === this.state?.settings.selectedProfileId;
-      const count = this.state?.templates.filter(t => t.profileId === p.id).length || 0;
-      const isCommon = p.id === 'profile-common';
+      const isActive = p.id === this.state?.settings.activeProfileId;
+      const tplCount = this.state?.templates.filter(t => t.profileId === p.id).length || 0;
 
       return `
-        <div class="profile-card ${isActive ? 'active-profile' : ''}">
-          <div class="profile-card-header">
-            <div>
-              <div class="profile-name">${p.name}</div>
-              <div class="form-hint">${count} шаблонов</div>
+        <div class="obsidian-card" style="margin-bottom:12px; display:flex; justify-content:space-between; align-items:center;">
+          <div>
+            <div style="font-weight:700; font-size:14px; color:#fff;">
+              ${p.name} ${isActive ? '<span class="status-pill closed" style="margin-left:6px;">АКТИВЕН</span>' : ''}
             </div>
-            ${isActive ? '<span class="stat-badge">Активный</span>' : ''}
+            <div style="font-size:12px; color:var(--text-muted); margin-top:2px;">Шаблонов: ${tplCount}</div>
           </div>
-          <div class="profile-card-actions">
-            ${!isActive ? `<button class="btn btn-sm btn-primary btn-select-prof" data-id="${p.id}">Выбрать</button>` : ''}
-            <button class="btn btn-sm btn-outline btn-edit-prof" data-id="${p.id}">Переименовать</button>
-            ${!isCommon ? `<button class="btn btn-sm btn-danger btn-delete-prof" data-id="${p.id}">Удалить</button>` : ''}
+          <div style="display:flex; gap:8px;">
+            ${!isActive ? `<button class="btn btn-xs btn-primary-accent btn-set-active-prof" data-id="${p.id}">Активировать</button>` : ''}
+            ${!p.isDefault ? `<button class="btn btn-xs btn-danger-glow btn-del-prof" data-id="${p.id}">Удалить</button>` : ''}
           </div>
         </div>
       `;
     }).join('');
 
-    container.querySelectorAll('.btn-select-prof').forEach(btn => {
-      btn.addEventListener('click', async () => {
-        const id = btn.getAttribute('data-id');
+    container.querySelectorAll('.btn-set-active-prof').forEach(b => {
+      b.addEventListener('click', () => {
+        const id = b.getAttribute('data-id');
         if (id) {
-          await chrome.runtime.sendMessage({ type: 'SET_SELECTED_PROFILE', payload: { profileId: id } });
-          await this.refreshState();
+          chrome.runtime.sendMessage({ type: 'UPDATE_SETTINGS', payload: { activeProfileId: id } }, () => this.refreshState());
         }
       });
     });
 
-    container.querySelectorAll('.btn-edit-prof').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const id = btn.getAttribute('data-id');
-        const prof = this.state?.profiles.find(p => p.id === id);
-        if (prof) this.openProfileModal(prof);
-      });
-    });
-
-    container.querySelectorAll('.btn-delete-prof').forEach(btn => {
-      btn.addEventListener('click', async () => {
-        const id = btn.getAttribute('data-id');
-        if (id && confirm('Удалить этот профиль и все его шаблоны?')) {
-          await chrome.runtime.sendMessage({ type: 'DELETE_PROFILE', payload: { profileId: id } });
-          await this.refreshState();
+    container.querySelectorAll('.btn-del-prof').forEach(b => {
+      b.addEventListener('click', () => {
+        const id = b.getAttribute('data-id');
+        if (id && confirm('Удалить этот профиль и все связанные шаблоны?')) {
+          chrome.runtime.sendMessage({ type: 'DELETE_PROFILE', payload: { profileId: id } }, () => this.refreshState());
         }
       });
     });
   }
 
-  // --- 7. API SETTINGS ---
+  // ==========================================================================
+  // 8. API SETTINGS
+  // ==========================================================================
   private bindApiEvents() {
-    const toggleBtn = document.getElementById('btn-toggle-key-visibility');
-    const keyInput = document.getElementById('api-golden-key') as HTMLInputElement;
-    toggleBtn?.addEventListener('click', () => {
-      if (keyInput) {
-        keyInput.type = keyInput.type === 'password' ? 'text' : 'password';
-      }
-    });
-
-    // Test API
-    document.getElementById('btn-test-api')?.addEventListener('click', async () => {
-      const btn = document.getElementById('btn-test-api') as HTMLButtonElement;
-      const statusText = document.getElementById('api-status-text');
-      const dot = document.getElementById('api-status-dot');
-      const token = keyInput?.value?.trim() || '';
-
-      btn.disabled = true;
-      btn.textContent = 'Проверка...';
-
-      try {
-        const res = await chrome.runtime.sendMessage({
-          type: 'TEST_API_CONNECTION',
-          payload: { goldenKey: token }
-        });
-
-        if (res?.authenticated && res.user) {
-          if (dot) dot.className = 'status-indicator connected';
-          if (statusText) statusText.textContent = `● Подключено: ${res.user.username} (Баланс: ${formatMoney(res.user.totalBalance, res.user.currency)})`;
-        } else {
-          if (dot) dot.className = 'status-indicator error';
-          const diag = res?.diagnostics;
-          let diagInfo = '';
-          if (diag) {
-            const parts = [`HTTP ${diag.status}`];
-            if (diag.source) parts.push(diag.source === 'content-script' ? 'вкладка FunPay' : 'прямой запрос');
-            if (diag.isCloudflare) parts.push('Cloudflare');
-            if (diag.hasLoginForm) parts.push('форма гостя');
-            diagInfo = ` (${parts.join(', ')})`;
-          }
-          if (statusText) statusText.textContent = `● Ошибка: ${res?.error || 'Не удалось авторизоваться'}${diagInfo}`;
-        }
-      } finally {
-        btn.disabled = false;
-        btn.innerHTML = '<span class="icon">🔍</span> Проверить подключение';
-      }
-    });
-
-    // Save API key
-    document.getElementById('btn-save-api')?.addEventListener('click', async () => {
-      const token = keyInput?.value?.trim() || '';
+    document.getElementById('btn-save-key')?.addEventListener('click', async () => {
+      const input = document.getElementById('golden-key-input') as HTMLInputElement;
+      const key = input?.value?.trim() || '';
       await chrome.runtime.sendMessage({
         type: 'UPDATE_SETTINGS',
-        payload: { goldenKey: token }
+        payload: { goldenKey: key }
       });
-      alert('Токен golden_key сохранен в локальном защищенном хранилище!');
+      alert('Токен сохранен!');
       await this.refreshState();
     });
 
-    // Clear API key
-    document.getElementById('btn-clear-api')?.addEventListener('click', async () => {
-      if (confirm('Удалить сохраненный токен авторизации?')) {
-        await chrome.runtime.sendMessage({ type: 'CLEAR_API_CREDENTIALS' });
-        if (keyInput) keyInput.value = '';
-        const statusText = document.getElementById('api-status-text');
-        const dot = document.getElementById('api-status-dot');
-        if (dot) dot.className = 'status-indicator';
-        if (statusText) statusText.textContent = 'Токен удален';
-        await this.refreshState();
+    document.getElementById('btn-test-key')?.addEventListener('click', async () => {
+      const btn = document.getElementById('btn-test-key') as HTMLButtonElement;
+      btn.disabled = true;
+      btn.textContent = 'Проверка...';
+      try {
+        const res = await chrome.runtime.sendMessage({ type: 'SYNC_DATA' });
+        if (res?.success) {
+          alert('Токен успешно проверен! Подключение установлено.');
+        } else {
+          alert('Ошибка проверки токена: ' + (res?.error || 'Проверьте токен'));
+        }
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Проверить';
       }
-    });
-
-    // Copy diagnostic report
-    const copyDiagBtn = document.getElementById('btn-copy-diag');
-    copyDiagBtn?.addEventListener('click', async () => {
-      const reportText = this.state?.cache?.diagnosticReport;
-      if (reportText) {
-        await navigator.clipboard.writeText(reportText);
-        const orig = copyDiagBtn.textContent;
-        copyDiagBtn.textContent = '✅ Скопировано!';
-        setTimeout(() => {
-          copyDiagBtn.textContent = orig;
-        }, 2000);
-      }
+      await this.refreshState();
     });
   }
 
   private renderApiSettings() {
     if (!this.state) return;
-    const keyInput = document.getElementById('api-golden-key') as HTMLInputElement;
-    if (keyInput && this.state.settings.goldenKey) {
-      keyInput.value = this.state.settings.goldenKey;
+    const input = document.getElementById('golden-key-input') as HTMLInputElement;
+    const dot = document.getElementById('key-status-dot');
+    const text = document.getElementById('key-status-text');
+
+    if (input && this.state.settings.goldenKey) {
+      input.value = this.state.settings.goldenKey;
     }
 
-    const dot = document.getElementById('api-status-dot');
-    const statusText = document.getElementById('api-status-text');
-    if (this.state.cache.accountInfo) {
-      if (dot) dot.className = 'status-indicator connected';
-      if (statusText) statusText.textContent = `● Подключено: ${this.state.cache.accountInfo.username} (ID ${this.state.cache.accountInfo.userId})`;
-    } else if (this.state.cache.error) {
-      if (dot) dot.className = 'status-indicator error';
-      if (statusText) statusText.textContent = `● Ошибка: ${this.state.cache.error}`;
-    }
-
-    const diagReportEl = document.getElementById('diag-report-text');
-    const copyDiagBtn = document.getElementById('btn-copy-diag');
-    if (diagReportEl) {
-      if (this.state.cache.diagnosticReport) {
-        diagReportEl.textContent = this.state.cache.diagnosticReport;
-        if (copyDiagBtn) copyDiagBtn.style.display = 'inline-flex';
+    if (dot && text) {
+      if (this.state.cache.accountInfo) {
+        dot.className = 'status-dot-lg green';
+        text.textContent = `Подключено: ${this.state.cache.accountInfo.username} (Баланс: ${formatMoney(this.state.cache.accountInfo.totalBalance, this.state.cache.accountInfo.currency)})`;
       } else {
-        diagReportEl.textContent = 'Отчёт пока не сформирован. Нажмите «Обновить данные» на вкладке «Дашборд & Статистика».';
-        if (copyDiagBtn) copyDiagBtn.style.display = 'none';
+        dot.className = 'status-dot-lg red';
+        text.textContent = 'Сессия FunPay не активна или токен не указан';
       }
     }
   }
 
-  // --- 8. GENERAL SETTINGS ---
+  // ==========================================================================
+  // 9. GENERAL SETTINGS
+  // ==========================================================================
   private bindGeneralEvents() {
-    const bindToggle = (id: string, key: keyof AppSettings) => {
-      const el = document.getElementById(id) as HTMLInputElement;
-      el?.addEventListener('change', async () => {
-        await chrome.runtime.sendMessage({
-          type: 'UPDATE_SETTINGS',
-          payload: { [key]: el.checked }
-        });
-        await this.refreshState();
-      });
-    };
+    document.getElementById('btn-save-settings')?.addEventListener('click', async () => {
+      const hotkeys = (document.getElementById('setting-hotkeys') as HTMLInputElement)?.checked;
+      const sound = (document.getElementById('setting-sound') as HTMLInputElement)?.checked;
+      const notifs = (document.getElementById('setting-notifications') as HTMLInputElement)?.checked;
+      const alertHours = parseInt((document.getElementById('setting-shift-alert-hours') as HTMLInputElement)?.value || '8', 10);
+      const opsRaw = (document.getElementById('setting-operators-list') as HTMLTextAreaElement)?.value || '';
 
-    bindToggle('setting-hotkeys-enabled', 'hotkeysEnabled');
-    bindToggle('setting-panel-visible', 'panelVisible');
-    bindToggle('setting-panel-docked', 'panelDocked');
-    bindToggle('setting-dev-mode', 'developerMode');
-    bindToggle('setting-shift-widget-visible', 'shiftWidgetVisible');
+      const opsList = opsRaw.split('\n').map(s => s.trim()).filter(Boolean);
 
-    const overrunSelect = document.getElementById('setting-shift-overrun-hours') as HTMLSelectElement;
-    overrunSelect?.addEventListener('change', async () => {
-      const hours = parseInt(overrunSelect.value, 10);
       await chrome.runtime.sendMessage({
         type: 'UPDATE_SETTINGS',
-        payload: { shiftOverrunAlertHours: hours }
+        payload: {
+          hotkeysEnabled: hotkeys,
+          soundEnabled: sound,
+          notificationsEnabled: notifs,
+          shiftOverrunAlertHours: alertHours,
+          operatorsList: opsList
+        }
       });
+
+      alert('Настройки сохранены!');
       await this.refreshState();
-    });
-
-    const themeSelect = document.getElementById('setting-theme') as HTMLSelectElement;
-    themeSelect?.addEventListener('change', async () => {
-      const themeVal = themeSelect.value as 'system' | 'dark' | 'light';
-      document.body.className = `theme-${themeVal}`;
-      await chrome.runtime.sendMessage({
-        type: 'UPDATE_SETTINGS',
-        payload: { theme: themeVal }
-      });
-    });
-
-    const syncSelect = document.getElementById('setting-sync-interval') as HTMLSelectElement;
-    syncSelect?.addEventListener('change', async () => {
-      await chrome.runtime.sendMessage({
-        type: 'UPDATE_SETTINGS',
-        payload: { autoSyncIntervalMinutes: parseInt(syncSelect.value, 10) }
-      });
     });
   }
 
   private renderGeneralSettings() {
     if (!this.state) return;
-    const setChecked = (id: string, val: boolean) => {
-      const el = document.getElementById(id) as HTMLInputElement;
-      if (el) el.checked = !!val;
-    };
+    const s = this.state.settings;
 
-    setChecked('setting-hotkeys-enabled', this.state.settings.hotkeysEnabled);
-    setChecked('setting-panel-visible', this.state.settings.panelVisible);
-    setChecked('setting-panel-docked', this.state.settings.panelDocked);
-    setChecked('setting-dev-mode', this.state.settings.developerMode);
-    setChecked('setting-shift-widget-visible', this.state.settings.shiftWidgetVisible ?? true);
+    const hk = document.getElementById('setting-hotkeys') as HTMLInputElement;
+    const snd = document.getElementById('setting-sound') as HTMLInputElement;
+    const notif = document.getElementById('setting-notifications') as HTMLInputElement;
+    const alertH = document.getElementById('setting-shift-alert-hours') as HTMLInputElement;
+    const ops = document.getElementById('setting-operators-list') as HTMLTextAreaElement;
 
-    const overrunSelect = document.getElementById('setting-shift-overrun-hours') as HTMLSelectElement;
-    if (overrunSelect) {
-      overrunSelect.value = String(this.state.settings.shiftOverrunAlertHours ?? 8);
-    }
-
-    const themeSelect = document.getElementById('setting-theme') as HTMLSelectElement;
-    if (themeSelect) themeSelect.value = this.state.settings.theme;
-    document.body.className = `theme-${this.state.settings.theme}`;
-
-    const syncSelect = document.getElementById('setting-sync-interval') as HTMLSelectElement;
-    if (syncSelect) syncSelect.value = String(this.state.settings.autoSyncIntervalMinutes);
+    if (hk) hk.checked = !!s.hotkeysEnabled;
+    if (snd) snd.checked = !!s.soundEnabled;
+    if (notif) notif.checked = !!s.notificationsEnabled;
+    if (alertH) alertH.value = String(s.shiftOverrunAlertHours || 8);
+    if (ops && s.operatorsList) ops.value = s.operatorsList.join('\n');
   }
 
-  // --- 9. BACKUP & EXPORT ---
+  // ==========================================================================
+  // 10. BACKUP
+  // ==========================================================================
   private bindBackupEvents() {
     document.getElementById('btn-export-backup')?.addEventListener('click', async () => {
       const res = await chrome.runtime.sendMessage({ type: 'EXPORT_BACKUP' });
       if (res?.backup) {
-        const blob = new Blob([JSON.stringify(res.backup, null, 2)], { type: 'application/json' });
+        const json = JSON.stringify(res.backup, null, 2);
+        const blob = new Blob([json], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `fanpay-hotkeys-backup-${new Date().toISOString().slice(0, 10)}.json`;
+        a.download = `fanpay_backup_${new Date().toISOString().slice(0, 10)}.json`;
         a.click();
         URL.revokeObjectURL(url);
       }
     });
 
-    const fileInput = document.getElementById('input-backup-file') as HTMLInputElement;
-    document.getElementById('btn-import-browse')?.addEventListener('click', () => {
+    const fileInput = document.getElementById('input-import-file') as HTMLInputElement;
+    document.getElementById('btn-import-backup')?.addEventListener('click', () => {
       fileInput?.click();
     });
 
-    fileInput?.addEventListener('change', () => {
-      const file = fileInput.files?.[0];
-      const nameEl = document.getElementById('import-file-name');
-      const optionsBox = document.getElementById('import-options-box');
-      if (file && nameEl && optionsBox) {
-        nameEl.textContent = file.name;
-        optionsBox.style.display = 'block';
-      }
-    });
-
-    document.getElementById('btn-apply-import')?.addEventListener('click', () => {
-      const file = fileInput.files?.[0];
+    fileInput?.addEventListener('change', async (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
       if (!file) return;
-
-      const reader = new FileReader();
-      reader.onload = async (e) => {
-        try {
-          const content = e.target?.result as string;
-          const backup: BackupData = JSON.parse(content);
-          const modeEl = document.querySelector<HTMLInputElement>('input[name="import-mode"]:checked');
-          const overwrite = modeEl?.value === 'overwrite';
-
-          if (overwrite && !confirm('Внимание! Все текущие шаблоны и профили будут перезаписаны. Продолжить?')) {
-            return;
-          }
-
-          const res = await chrome.runtime.sendMessage({
-            type: 'IMPORT_BACKUP',
-            payload: { backup, overwrite }
-          });
-
-          if (res?.success) {
-            alert('Резервная копия успешно импортирована!');
-            await this.refreshState();
-          } else {
-            alert('Ошибка импорта: ' + (res?.error || 'Неверный формат'));
-          }
-        } catch {
-          alert('Ошибка чтения файла. Проверьте JSON.');
+      const text = await file.text();
+      try {
+        const backup = JSON.parse(text);
+        if (confirm('Импортировать данные? Текущие шаблоны и профили будут объединены.')) {
+          await chrome.runtime.sendMessage({ type: 'IMPORT_BACKUP', payload: { backup } });
+          alert('Данные успешно импортированы!');
+          await this.refreshState();
         }
-      };
-      reader.readAsText(file);
+      } catch (err) {
+        alert('Ошибка при чтении файла резервной копии!');
+      }
     });
   }
 
-  // --- MODALS ---
   private bindModals() {
-    document.getElementById('modal-template-close')?.addEventListener('click', () => this.closeTemplateModal());
-    document.getElementById('btn-cancel-template')?.addEventListener('click', () => this.closeTemplateModal());
-
-    document.querySelectorAll('.btn-var-tag').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const varName = btn.getAttribute('data-var');
-        const textarea = document.getElementById('tmpl-text') as HTMLTextAreaElement;
-        if (varName && textarea) {
-          const start = textarea.selectionStart;
-          const end = textarea.selectionEnd;
-          const val = textarea.value;
-          textarea.value = val.substring(0, start) + varName + val.substring(end);
-          textarea.focus();
-          textarea.setSelectionRange(start + varName.length, start + varName.length);
-        }
-      });
-    });
-
-    const btnRecord = document.getElementById('btn-record-key');
-    const hotkeyInput = document.getElementById('tmpl-hotkey') as HTMLInputElement;
-
-    btnRecord?.addEventListener('click', () => {
-      this.recordingKey = true;
-      if (btnRecord) btnRecord.textContent = 'Нажмите клавишу...';
-      hotkeyInput.focus();
-    });
-
-    hotkeyInput?.addEventListener('keydown', (e) => {
-      if (!this.recordingKey) return;
-      e.preventDefault();
-      const parts: string[] = [];
-      if (e.ctrlKey) parts.push('Ctrl');
-      if (e.altKey) parts.push('Alt');
-      if (e.shiftKey && !e.key.startsWith('F')) parts.push('Shift');
-      if (/^F\d+$/i.test(e.key)) {
-        parts.push(e.key.toUpperCase());
-      } else if (e.key !== 'Control' && e.key !== 'Alt' && e.key !== 'Shift') {
-        parts.push(e.key.toUpperCase());
+    // Backdrop click handlers to dismiss modals
+    document.getElementById('shift-modal')?.addEventListener('click', (e) => {
+      if ((e.target as HTMLElement).id === 'shift-modal') {
+        this.closeShiftModal();
       }
-
-      hotkeyInput.value = parts.join('+');
-      this.recordingKey = false;
-      if (btnRecord) btnRecord.textContent = 'Захват клавиши';
     });
-
-    document.getElementById('btn-save-template')?.addEventListener('click', async () => {
-      const idInput = document.getElementById('tmpl-id') as HTMLInputElement;
-      const profSelect = document.getElementById('tmpl-profile') as HTMLSelectElement;
-      const nameInput = document.getElementById('tmpl-name') as HTMLInputElement;
-      const hotkeyInp = document.getElementById('tmpl-hotkey') as HTMLInputElement;
-      const textInput = document.getElementById('tmpl-text') as HTMLTextAreaElement;
-      const enabledInput = document.getElementById('tmpl-enabled') as HTMLInputElement;
-
-      if (!nameInput.value.trim()) {
-        alert('Укажите название шаблона');
-        return;
-      }
-
-      const id = idInput.value || `tmpl-${Date.now()}`;
-      const template: Template = {
-        id,
-        profileId: profSelect.value,
-        name: nameInput.value.trim(),
-        hotkey: hotkeyInp.value.trim().toUpperCase(),
-        text: textInput.value,
-        enabled: enabledInput.checked,
-        sortOrder: idInput.value ? (this.state?.templates.find(t => t.id === id)?.sortOrder || 1) : (this.state?.templates.length || 0) + 1
-      };
-
-      await chrome.runtime.sendMessage({ type: 'SAVE_TEMPLATE', payload: template });
-      this.closeTemplateModal();
-      await this.refreshState();
-    });
-
-    document.getElementById('modal-profile-close')?.addEventListener('click', () => this.closeProfileModal());
-    document.getElementById('btn-cancel-profile')?.addEventListener('click', () => this.closeProfileModal());
-
-    document.getElementById('btn-save-profile')?.addEventListener('click', async () => {
-      const idInput = document.getElementById('prof-id') as HTMLInputElement;
-      const nameInput = document.getElementById('prof-name') as HTMLInputElement;
-
-      if (!nameInput.value.trim()) {
-        alert('Укажите название профиля');
-        return;
-      }
-
-      const id = idInput.value || `prof-${Date.now()}`;
-      const profile: Profile = {
-        id,
-        name: nameInput.value.trim(),
-        createdAt: Date.now()
-      };
-
-      await chrome.runtime.sendMessage({ type: 'SAVE_PROFILE', payload: profile });
-      this.closeProfileModal();
-      await this.refreshState();
-    });
-  }
-
-  private openTemplateModal(tmpl?: Template) {
-    const modal = document.getElementById('modal-template');
-    const title = document.getElementById('modal-template-title');
-    const idInput = document.getElementById('tmpl-id') as HTMLInputElement;
-    const profSelect = document.getElementById('tmpl-profile') as HTMLSelectElement;
-    const nameInput = document.getElementById('tmpl-name') as HTMLInputElement;
-    const hotkeyInput = document.getElementById('tmpl-hotkey') as HTMLInputElement;
-    const textInput = document.getElementById('tmpl-text') as HTMLTextAreaElement;
-    const enabledInput = document.getElementById('tmpl-enabled') as HTMLInputElement;
-
-    if (!modal || !this.state) return;
-
-    profSelect.innerHTML = this.state.profiles.map(p => `
-      <option value="${p.id}" ${p.id === (tmpl?.profileId || this.state?.settings.selectedProfileId) ? 'selected' : ''}>${p.name}</option>
-    `).join('');
-
-    if (tmpl) {
-      if (title) title.textContent = 'Редактировать шаблон';
-      idInput.value = tmpl.id;
-      nameInput.value = tmpl.name;
-      hotkeyInput.value = tmpl.hotkey;
-      textInput.value = tmpl.text;
-      enabledInput.checked = tmpl.enabled;
-    } else {
-      if (title) title.textContent = 'Новый шаблон';
-      idInput.value = '';
-      nameInput.value = '';
-      hotkeyInput.value = '';
-      textInput.value = '';
-      enabledInput.checked = true;
-    }
-
-    modal.style.display = 'flex';
-  }
-
-  private closeTemplateModal() {
-    const modal = document.getElementById('modal-template');
-    if (modal) modal.style.display = 'none';
-  }
-
-  private openProfileModal(prof?: Profile) {
-    const modal = document.getElementById('modal-profile');
-    const title = document.getElementById('modal-profile-title');
-    const idInput = document.getElementById('prof-id') as HTMLInputElement;
-    const nameInput = document.getElementById('prof-name') as HTMLInputElement;
-
-    if (!modal) return;
-
-    if (prof) {
-      if (title) title.textContent = 'Переименовать профиль';
-      idInput.value = prof.id;
-      nameInput.value = prof.name;
-    } else {
-      if (title) title.textContent = 'Новый профиль';
-      idInput.value = '';
-      nameInput.value = '';
-    }
-
-    modal.style.display = 'flex';
-  }
-
-  private closeProfileModal() {
-    const modal = document.getElementById('modal-profile');
-    if (modal) modal.style.display = 'none';
   }
 }
 
+// Instantiate and start
+const controller = new OptionsController();
 document.addEventListener('DOMContentLoaded', () => {
-  const options = new OptionsController();
-  options.init();
+  controller.init();
 });

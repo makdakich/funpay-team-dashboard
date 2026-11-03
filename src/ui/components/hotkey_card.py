@@ -113,9 +113,9 @@ class HotkeyCardWidget(QFrame):
             self.setStyleSheet(
                 """
                 HotkeyCardWidget {
-                    background-color: #24242c;
-                    border: 1px solid #6366f1;
-                    border-left: 3px solid #818cf8;
+                    background-color: #131B2E;
+                    border: 1px solid #3B82F6;
+                    border-left: 3px solid #60A5FA;
                     border-radius: 6px;
                 }
                 """
@@ -124,13 +124,13 @@ class HotkeyCardWidget(QFrame):
             self.setStyleSheet(
                 """
                 HotkeyCardWidget {
-                    background-color: #18181b;
-                    border: 1px solid #27272a;
+                    background-color: #0E131F;
+                    border: 1px solid #1B2436;
                     border-radius: 6px;
                 }
                 HotkeyCardWidget:hover {
-                    background-color: #202024;
-                    border-color: #3f3f46;
+                    background-color: #131B2E;
+                    border-color: #334155;
                 }
                 """
             )

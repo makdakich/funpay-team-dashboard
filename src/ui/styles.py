@@ -72,7 +72,7 @@ def get_dark_theme_qss(accent_name: str = "emerald") -> str:
     return f"""
 /* Global Window & Font */
 QWidget {{
-    background-color: #090D16;
+    background-color: #080B11;
     color: #F8FAFC;
     font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Arial, sans-serif;
     font-size: 13px;
@@ -81,30 +81,30 @@ QWidget {{
 }}
 
 QMainWindow {{
-    background-color: #090D16;
+    background-color: #080B11;
 }}
 
 QFrame#HeaderFrame {{
-    background-color: #0B0F19;
-    border-bottom: 1px solid #1E293B;
+    background-color: #0E131F;
+    border-bottom: 1px solid #1B2436;
     min-height: 52px;
     max-height: 54px;
 }}
 
 QFrame#LeftPanel {{
-    background-color: #0B0F19;
-    border-right: 1px solid #1E293B;
+    background-color: #0E131F;
+    border-right: 1px solid #1B2436;
 }}
 
 QFrame#RightPanel {{
-    background-color: #090D16;
+    background-color: #080B11;
 }}
 
 /* Buttons */
 QPushButton {{
-    background-color: #111827;
+    background-color: #131B2E;
     color: #F8FAFC;
-    border: 1px solid #1E293B;
+    border: 1px solid #1B2436;
     border-radius: 6px;
     padding: 6px 14px;
     font-weight: 500;
@@ -116,14 +116,14 @@ QPushButton:hover {{
 }}
 
 QPushButton:pressed {{
-    background-color: #0B0F19;
+    background-color: #0E131F;
     border-color: {theme['primary']};
 }}
 
 QPushButton:disabled {{
-    background-color: #0B0F19;
+    background-color: #0E131F;
     color: #64748B;
-    border-color: #1E293B;
+    border-color: #1B2436;
 }}
 
 /* Primary Action Buttons */
@@ -145,35 +145,35 @@ QPushButton#PrimaryButton:pressed {{
 
 /* Success / Toggle Button */
 QPushButton#SuccessButton {{
-    background-color: #14532d;
-    color: #4ade80;
-    border: 1px solid #16a34a;
+    background-color: #064E3B;
+    color: #34D399;
+    border: 1px solid #059669;
     font-weight: 600;
 }}
 
 QPushButton#SuccessButton:hover {{
-    background-color: #166534;
-    border-color: #22c55e;
+    background-color: #047857;
+    border-color: #10B981;
 }}
 
 /* Danger Button */
 QPushButton#DangerButton {{
-    background-color: #450a0a;
-    color: #f87171;
-    border: 1px solid #7f1d1d;
+    background-color: #450A0A;
+    color: #F87171;
+    border: 1px solid #7F1D1D;
 }}
 
 QPushButton#DangerButton:hover {{
-    background-color: #7f1d1d;
-    border-color: #dc2626;
+    background-color: #7F1D1D;
+    border-color: #DC2626;
     color: #ffffff;
 }}
 
 /* Tool Buttons in Header */
 QPushButton#ToolButton {{
-    background-color: #27272a;
-    color: #e4e4e7;
-    border: 1px solid #3f3f46;
+    background-color: #131B2E;
+    color: #94A3B8;
+    border: 1px solid #1B2436;
     border-radius: 6px;
     padding: 5px;
     min-width: 30px;
@@ -183,14 +183,15 @@ QPushButton#ToolButton {{
 }}
 
 QPushButton#ToolButton:hover {{
-    background-color: #3f3f46;
+    background-color: #1E293B;
     border-color: {theme['primary']};
+    color: #F8FAFC;
 }}
 
 /* Shift Widget */
 QFrame#ShiftWidget {{
-    background-color: #18181b;
-    border: 1px solid #27272a;
+    background-color: #0E131F;
+    border: 1px solid #1B2436;
     border-radius: 8px;
     padding: 2px 6px;
 }}
@@ -239,23 +240,23 @@ QLabel#ShiftCountLabel {{
 
 /* Inputs & Edits */
 QLineEdit, QTextEdit, QPlainTextEdit {{
-    background-color: #18181b;
-    color: #f4f4f5;
-    border: 1px solid #27272a;
+    background-color: #0E131F;
+    color: #F8FAFC;
+    border: 1px solid #1B2436;
     border-radius: 6px;
     padding: 8px 10px;
 }}
 
 QLineEdit:focus, QTextEdit:focus, QPlainTextEdit:focus {{
     border: 1px solid {theme['primary']};
-    background-color: #18181b;
+    background-color: #131B2E;
 }}
 
 /* ComboBox */
 QComboBox {{
-    background-color: #27272a;
-    color: #f4f4f5;
-    border: 1px solid #3f3f46;
+    background-color: #131B2E;
+    color: #F8FAFC;
+    border: 1px solid #1B2436;
     border-radius: 6px;
     padding: 4px 24px 4px 10px;
     min-width: 100px;
@@ -281,8 +282,8 @@ QComboBox::down-arrow {{
 }}
 
 QComboBox QAbstractItemView {{
-    background-color: #18181b;
-    border: 1px solid #3f3f46;
+    background-color: #0E131F;
+    border: 1px solid #1B2436;
     border-radius: 6px;
     selection-background-color: {theme['primary']};
     selection-color: #ffffff;
@@ -305,7 +306,7 @@ QListWidget::item {{
 
 /* Radio Buttons with Pixel-Perfect Asset */
 QRadioButton {{
-    color: #e4e4e7;
+    color: #94A3B8;
     spacing: 8px;
     font-size: 12px;
 }}
@@ -325,7 +326,7 @@ QRadioButton::indicator:checked {{
 
 /* Checkbox with Pixel-Perfect Asset */
 QCheckBox {{
-    color: #e4e4e7;
+    color: #94A3B8;
     spacing: 8px;
     font-size: 13px;
 }}
@@ -345,7 +346,7 @@ QCheckBox::indicator:checked {{
 
 /* Scrollbars */
 QScrollBar:vertical {{
-    background: #18181b;
+    background: #080B11;
     width: 6px;
     margin: 0px;
     border-radius: 3px;
@@ -356,13 +357,13 @@ QScrollBar:horizontal {{
 }}
 
 QScrollBar::handle:vertical {{
-    background: #3f3f46;
+    background: #1B2436;
     border-radius: 3px;
     min-height: 20px;
 }}
 
 QScrollBar::handle:vertical:hover {{
-    background: #52525b;
+    background: #334155;
 }}
 
 QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{
@@ -382,9 +383,9 @@ QLabel#ActiveShortcutBadge {{
 }}
 
 QLabel#InactiveShortcutBadge {{
-    background-color: #27272a;
-    color: #71717a;
-    border: 1px solid #3f3f46;
+    background-color: #131B2E;
+    color: #64748B;
+    border: 1px solid #1B2436;
     border-radius: 5px;
     padding: 3px 6px;
     font-size: 11px;
@@ -394,9 +395,9 @@ QLabel#InactiveShortcutBadge {{
 
 /* Status Bar */
 QStatusBar {{
-    background-color: #18181b;
-    color: #71717a;
-    border-top: 1px solid #27272a;
+    background-color: #0E131F;
+    color: #64748B;
+    border-top: 1px solid #1B2436;
     padding: 4px 10px;
     font-size: 12px;
 }}

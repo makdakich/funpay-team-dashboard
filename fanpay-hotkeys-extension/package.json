@@ -1,13 +1,13 @@
 {
   "name": "fanpay-hotkeys-extension",
-  "version": "1.0.0",
+  "version": "2.1.0",
   "description": "Chrome Extension помощник для продавцов FunPay с горячими клавишами, шаблонами и статистикой",
   "type": "module",
   "private": true,
   "scripts": {
     "build": "node scripts/build.mjs",
     "watch": "node scripts/build.mjs --watch",
-    "test": "tsx --test test/adapters.test.ts test/shift.test.ts"
+    "test": "tsx --test test/adapters.test.ts test/shift.test.ts test/analytics.test.ts"
   },
   "devDependencies": {
     "@types/chrome": "^0.0.280",
