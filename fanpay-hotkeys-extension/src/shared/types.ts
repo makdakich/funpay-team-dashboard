@@ -24,7 +24,8 @@ export type ThemeMode = 'light' | 'dark' | 'system';
 export interface AppSettings {
   selectedProfileId: string;
   hotkeysEnabled: boolean;
-  panelVisible: boolean;
+  panelEnabled?: boolean; // whether on-page floating hotkey panel is enabled (default true)
+  panelVisible: boolean; // whether on-page floating panel is expanded (true) or collapsed into pill (false)
   panelPosition?: {
     top?: number;
     left?: number;

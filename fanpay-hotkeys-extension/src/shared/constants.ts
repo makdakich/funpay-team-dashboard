@@ -171,11 +171,12 @@ Roblox → ⚙️ Settings → Privacy & content restrictions → Visibility & p
 export const DEFAULT_SETTINGS: AppSettings = {
   selectedProfileId: 'profile-1',
   hotkeysEnabled: true,
+  panelEnabled: true,
   panelVisible: true,
-  panelDocked: true,
+  panelDocked: false,
   panelPosition: {
-    bottom: 20,
-    right: 20
+    top: 140,
+    left: 20
   },
   theme: 'system',
   developerMode: false,

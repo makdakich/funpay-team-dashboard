@@ -1936,6 +1936,7 @@ class OptionsController {
   private bindGeneralEvents() {
     document.getElementById('btn-save-settings')?.addEventListener('click', async () => {
       const hotkeys = (document.getElementById('setting-hotkeys') as HTMLInputElement)?.checked;
+      const panelEnabled = (document.getElementById('setting-panel-enabled') as HTMLInputElement)?.checked;
       const sound = (document.getElementById('setting-sound') as HTMLInputElement)?.checked;
       const notifs = (document.getElementById('setting-notifications') as HTMLInputElement)?.checked;
       const alertHours = parseInt((document.getElementById('setting-shift-alert-hours') as HTMLInputElement)?.value || '8', 10);
@@ -1947,6 +1948,7 @@ class OptionsController {
         type: 'UPDATE_SETTINGS',
         payload: {
           hotkeysEnabled: hotkeys,
+          panelEnabled: panelEnabled,
           soundEnabled: sound,
           notificationsEnabled: notifs,
           shiftOverrunAlertHours: alertHours,
@@ -1964,12 +1966,14 @@ class OptionsController {
     const s = this.state.settings;
 
     const hk = document.getElementById('setting-hotkeys') as HTMLInputElement;
+    const panelEn = document.getElementById('setting-panel-enabled') as HTMLInputElement;
     const snd = document.getElementById('setting-sound') as HTMLInputElement;
     const notif = document.getElementById('setting-notifications') as HTMLInputElement;
     const alertH = document.getElementById('setting-shift-alert-hours') as HTMLInputElement;
     const ops = document.getElementById('setting-operators-list') as HTMLTextAreaElement;
 
     if (hk) hk.checked = !!s.hotkeysEnabled;
+    if (panelEn) panelEn.checked = s.panelEnabled !== false;
     if (snd) snd.checked = !!s.soundEnabled;
     if (notif) notif.checked = !!s.notificationsEnabled;
     if (alertH) alertH.value = String(s.shiftOverrunAlertHours || 8);

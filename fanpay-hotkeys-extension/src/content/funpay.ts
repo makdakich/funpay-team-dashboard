@@ -176,6 +176,8 @@ class FunPayContentController {
       const chatPresent = FunPayDomAdapter.findCurrentChat();
       if (!panelMounted && chatPresent && this.state) {
         this.panel.render();
+      } else if (panelMounted && !chatPresent) {
+        this.panel.destroy();
       }
     });
 
