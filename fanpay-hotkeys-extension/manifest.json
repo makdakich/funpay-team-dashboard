@@ -6,7 +6,9 @@
   "permissions": [
     "storage",
     "unlimitedStorage",
-    "scripting"
+    "scripting",
+    "alarms",
+    "notifications"
   ],
   "host_permissions": [
     "*://funpay.com/*",

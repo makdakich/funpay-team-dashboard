@@ -318,6 +318,14 @@ class PopupController {
 
     try {
       if (this.shiftState.shiftActive) {
+        // Confirmation before ending shift to prevent accidental termination
+        const opName = this.shiftState.currentOperator || 'Оператор 1';
+        const confirmed = window.confirm(`Завершить рабочую смену оператора «${opName}»?`);
+        if (!confirmed) {
+          if (btn) btn.disabled = false;
+          return;
+        }
+
         // Stop current shift
         const res = await chrome.runtime.sendMessage({ type: 'STOP_SHIFT' });
         if (res && res.shiftState) {

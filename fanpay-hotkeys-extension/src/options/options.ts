@@ -50,6 +50,18 @@ class OptionsController {
     this.bindBackupEvents();
     this.bindModals();
 
+    // Listen to background progress updates and shift changes
+    chrome.storage.onChanged.addListener((changes, areaName) => {
+      if (areaName === 'local') {
+        if (changes.fphk_sync_progress) {
+          this.updateSyncProgressUI(changes.fphk_sync_progress.newValue);
+        }
+        if (changes.fphk_shift_state) {
+          this.renderDashboardShift();
+        }
+      }
+    });
+
     await this.refreshState();
 
     // Check hash anchor e.g. #stats, #orders
@@ -147,7 +159,7 @@ class OptionsController {
 
   // --- 1. DASHBOARD ---
   private bindDashboardEvents() {
-    // Sync button
+    // Sync button (Normal incremental sync)
     document.getElementById('btn-dashboard-sync')?.addEventListener('click', async () => {
       const btn = document.getElementById('btn-dashboard-sync') as HTMLButtonElement;
       btn.disabled = true;
@@ -161,6 +173,46 @@ class OptionsController {
       } finally {
         btn.disabled = false;
         btn.innerHTML = '<span class="icon">🔄</span> Обновить данные';
+      }
+    });
+
+    // Fetch All History Button (Full multi-page pagination)
+    document.getElementById('btn-fetch-all-history')?.addEventListener('click', async () => {
+      const btn = document.getElementById('btn-fetch-all-history') as HTMLButtonElement;
+      const banner = document.getElementById('sync-progress-banner');
+      btn.disabled = true;
+      btn.innerHTML = '⏳ Загрузка всех страниц...';
+      if (banner) banner.style.display = 'block';
+
+      try {
+        const res = await chrome.runtime.sendMessage({ type: 'FETCH_ALL_HISTORY' });
+        if (!res?.success) {
+          alert('Ошибка загрузки полной истории: ' + (res?.error || 'Проверьте подключение'));
+        } else {
+          alert(`Полная история продаж успешно получена!\nВсего заказов в базе: ${res.cache?.orders?.length || 0}`);
+        }
+        await this.refreshState();
+      } catch (err: unknown) {
+        alert('Ошибка запроса полной истории: ' + (err instanceof Error ? err.message : String(err)));
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<span class="icon">📥</span> Загрузить всю историю';
+        if (banner) {
+          setTimeout(() => { banner.style.display = 'none'; }, 2000);
+        }
+      }
+    });
+
+    // Stop Shift from Dashboard Banner
+    document.getElementById('btn-dash-stop-shift')?.addEventListener('click', async () => {
+      const activeShiftRes = await chrome.runtime.sendMessage({ type: 'GET_SHIFT_STATE' });
+      const op = activeShiftRes?.shiftState?.currentOperator || 'Оператор 1';
+      if (!window.confirm(`Завершить активную смену оператора «${op}»?`)) return;
+
+      const res = await chrome.runtime.sendMessage({ type: 'STOP_SHIFT' });
+      if (res?.success) {
+        alert('Смена успешно завершена и сохранена в историю!');
+        await this.refreshState();
       }
     });
 
@@ -245,7 +297,105 @@ class OptionsController {
     this.renderPeriodBlock('period-metrics-90days', stats.last90Days);
     this.renderPeriodBlock('period-metrics-all', stats.allTime);
 
+    this.renderDashboardShift();
+    this.renderHistoryCoverage();
     this.renderChart();
+  }
+
+  private async renderDashboardShift() {
+    const shiftBanner = document.getElementById('dashboard-active-shift');
+    if (!shiftBanner) return;
+
+    try {
+      const res = await chrome.runtime.sendMessage({ type: 'GET_SHIFT_STATE' });
+      const shiftState = res?.shiftState;
+
+      if (!shiftState || !shiftState.shiftActive || !shiftState.shiftStartTime) {
+        shiftBanner.style.display = 'none';
+        return;
+      }
+
+      shiftBanner.style.display = 'flex';
+      const opEl = document.getElementById('dash-shift-op');
+      const startEl = document.getElementById('dash-shift-start');
+      const timerEl = document.getElementById('dash-shift-timer');
+      const earningsEl = document.getElementById('dash-shift-earnings');
+
+      if (opEl) opEl.textContent = `👤 ${shiftState.currentOperator || 'Оператор 1'}`;
+      if (startEl) startEl.textContent = `Начало: ${formatTimeOnly(shiftState.shiftStartTime)}`;
+
+      const orders = this.state?.cache?.orders || [];
+      const sharePercent = this.state?.settings?.sellerSharePercent ?? 10.0;
+
+      const elapsed = Math.max(0, Date.now() - shiftState.shiftStartTime);
+      if (timerEl) timerEl.textContent = formatDuration(elapsed);
+
+      if (earningsEl) {
+        const e = calculateShiftEarnings(shiftState.shiftStartTime, Date.now(), orders, sharePercent);
+        const parts: string[] = [];
+        for (const [curr, amt] of Object.entries(e.turnoverByCurrency)) {
+          if (amt > 0) parts.push(formatMoney(amt, curr));
+        }
+        const turnoverStr = parts.length > 0 ? parts.join(', ') : '0 ₽';
+        earningsEl.textContent = `Заказов: ${e.ordersCount} • Выручка: ${turnoverStr}`;
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  private renderHistoryCoverage() {
+    const orders = this.state?.cache?.orders || [];
+    const spanTextEl = document.getElementById('coverage-span-text');
+    const metaTextEl = document.getElementById('coverage-meta-text');
+
+    if (!spanTextEl || !metaTextEl) return;
+
+    if (orders.length === 0) {
+      spanTextEl.textContent = 'Нет загруженных данных. Нажмите «Загрузить всю историю».';
+      metaTextEl.textContent = '0 заказов в базе';
+      return;
+    }
+
+    const newest = orders[0];
+    const oldest = orders[orders.length - 1];
+
+    spanTextEl.textContent = `с ${oldest.dateStr} по ${newest.dateStr}`;
+    metaTextEl.textContent = `Всего в базе: ${orders.length} заказов`;
+  }
+
+  private updateSyncProgressUI(prog: import('../../src/shared/types').SyncProgress | null) {
+    const banner = document.getElementById('sync-progress-banner');
+    const title = document.getElementById('sync-progress-text');
+    const counter = document.getElementById('sync-progress-counter');
+    const bar = document.getElementById('sync-progress-bar');
+    const sub = document.getElementById('sync-progress-sub');
+
+    if (!banner || !prog) {
+      if (banner && (!prog || !prog.inProgress)) {
+        banner.style.display = 'none';
+      }
+      return;
+    }
+
+    if (prog.inProgress) {
+      banner.style.display = 'block';
+      if (title) title.textContent = prog.stage || 'Синхронизация истории продаж...';
+      if (counter) counter.textContent = `${prog.totalOrdersFetched || 0} зак.`;
+      if (bar) {
+        const pct = Math.min(95, Math.max(10, (prog.page || 1) * 6));
+        bar.style.width = `${pct}%`;
+      }
+      if (sub) {
+        sub.textContent = `Страница ${prog.page || 1} • Последний заказ от: ${prog.oldestOrderDate || '—'}`;
+      }
+    } else {
+      if (bar) bar.style.width = '100%';
+      if (title) title.textContent = prog.error ? `Ошибка: ${prog.error}` : 'Синхронизация завершена!';
+      setTimeout(() => {
+        banner.style.display = 'none';
+      }, 3000);
+    }
   }
 
   private renderPeriodBlock(containerId: string, pStat: PeriodMultiCurrencyStats) {
@@ -1365,6 +1515,17 @@ class OptionsController {
     bindToggle('setting-panel-visible', 'panelVisible');
     bindToggle('setting-panel-docked', 'panelDocked');
     bindToggle('setting-dev-mode', 'developerMode');
+    bindToggle('setting-shift-widget-visible', 'shiftWidgetVisible');
+
+    const overrunSelect = document.getElementById('setting-shift-overrun-hours') as HTMLSelectElement;
+    overrunSelect?.addEventListener('change', async () => {
+      const hours = parseInt(overrunSelect.value, 10);
+      await chrome.runtime.sendMessage({
+        type: 'UPDATE_SETTINGS',
+        payload: { shiftOverrunAlertHours: hours }
+      });
+      await this.refreshState();
+    });
 
     const themeSelect = document.getElementById('setting-theme') as HTMLSelectElement;
     themeSelect?.addEventListener('change', async () => {
@@ -1396,6 +1557,12 @@ class OptionsController {
     setChecked('setting-panel-visible', this.state.settings.panelVisible);
     setChecked('setting-panel-docked', this.state.settings.panelDocked);
     setChecked('setting-dev-mode', this.state.settings.developerMode);
+    setChecked('setting-shift-widget-visible', this.state.settings.shiftWidgetVisible ?? true);
+
+    const overrunSelect = document.getElementById('setting-shift-overrun-hours') as HTMLSelectElement;
+    if (overrunSelect) {
+      overrunSelect.value = String(this.state.settings.shiftOverrunAlertHours ?? 8);
+    }
 
     const themeSelect = document.getElementById('setting-theme') as HTMLSelectElement;
     if (themeSelect) themeSelect.value = this.state.settings.theme;

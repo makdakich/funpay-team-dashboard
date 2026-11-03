@@ -1,19 +1,20 @@
 :root {
-  --bg-main: #0f172a;
-  --bg-sidebar: #1e293b;
-  --bg-card: #1e293b;
-  --bg-card-hover: #273549;
-  --bg-input: #0f172a;
-  --text-main: #f8fafc;
-  --text-muted: #94a3b8;
-  --border-color: #334155;
-  --accent: #10b981;
+  --bg-main: #090D16;
+  --bg-sidebar: #0B0F19;
+  --bg-card: #111827;
+  --bg-card-hover: #182234;
+  --bg-input: #0D1321;
+  --text-main: #F8FAFC;
+  --text-muted: #94A3B8;
+  --border-color: #1E293B;
+  --accent: #10B981;
   --accent-hover: #059669;
   --accent-glow: rgba(16, 185, 129, 0.2);
-  --danger: #ef4444;
-  --danger-hover: #dc2626;
-  --warning: #f59e0b;
-  --info: #38bdf8;
+  --danger: #EF4444;
+  --danger-hover: #DC2626;
+  --warning: #F59E0B;
+  --info: #38BDF8;
+  --primary: #3B82F6;
   --radius: 8px;
 }
 
@@ -897,4 +898,190 @@ input:checked + .slider:before {
 
 .modal-lg {
   max-width: 650px;
+}
+
+/* ==========================================================================
+   DASHBOARD NEW PANELS: SYNC PROGRESS, ACTIVE SHIFT & COVERAGE
+   ========================================================================== */
+
+/* Sync Progress Card */
+.sync-progress-card {
+  background: #0D1321;
+  border: 1px solid #1E293B;
+  border-left: 4px solid var(--primary);
+  margin-bottom: 20px;
+  padding: 14px 18px;
+}
+
+.progress-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.progress-title-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.progress-spinner {
+  font-size: 16px;
+  animation: fphkSpin 1.5s linear infinite;
+}
+
+@keyframes fphkSpin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.progress-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-main);
+}
+
+.progress-bar-wrap {
+  width: 100%;
+  height: 6px;
+  background: #1E293B;
+  border-radius: 3px;
+  overflow: hidden;
+  margin-bottom: 6px;
+}
+
+.progress-bar-fill {
+  width: 15%;
+  height: 100%;
+  background: linear-gradient(90deg, #3B82F6, #10B981);
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
+
+.progress-sub {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+/* Active Shift Live Card on Dashboard */
+.active-shift-dashboard-card {
+  background: #090D16;
+  border: 1px solid #10B981;
+  box-shadow: 0 4px 20px rgba(16, 185, 129, 0.12);
+  margin-bottom: 20px;
+  padding: 14px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.dash-shift-left {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.dash-shift-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: #10B981;
+}
+
+.dash-shift-operator {
+  font-size: 16px;
+  font-weight: 700;
+  color: #F8FAFC;
+}
+
+.dash-shift-time {
+  font-size: 12px;
+  color: #64748B;
+}
+
+.dash-shift-center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.dash-shift-timer-label {
+  font-size: 11px;
+  color: #94A3B8;
+  text-transform: uppercase;
+  font-weight: 600;
+}
+
+.dash-shift-timer-val {
+  font-family: monospace;
+  font-size: 32px;
+  font-weight: 800;
+  color: #10B981;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 1px;
+  line-height: 1.1;
+}
+
+.dash-shift-live-earnings {
+  font-size: 13px;
+  color: #F8FAFC;
+  font-weight: 500;
+}
+
+.dash-shift-right {
+  display: flex;
+  align-items: center;
+}
+
+/* History Coverage Card */
+.history-coverage-card {
+  background: #111827;
+  border: 1px solid #1E293B;
+  padding: 10px 16px;
+  margin-bottom: 20px;
+}
+
+.coverage-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.coverage-icon {
+  font-size: 18px;
+}
+
+.coverage-info {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex: 1;
+}
+
+.coverage-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: #94A3B8;
+}
+
+.coverage-text {
+  font-size: 13px;
+  font-weight: 600;
+  color: #F8FAFC;
+}
+
+.coverage-meta {
+  font-size: 12px;
+  font-weight: 600;
+  color: #10B981;
+  background: rgba(16, 185, 129, 0.12);
+  border: 1px solid rgba(16, 185, 129, 0.25);
+  padding: 3px 8px;
+  border-radius: 4px;
 }

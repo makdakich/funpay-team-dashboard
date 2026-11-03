@@ -8,6 +8,13 @@ chrome.runtime.onInstalled.addListener(async () => {
   const state = await loadState();
   debugLog(state.settings.developerMode, 'FanPay Hotkeys extension installed or updated.');
 
+  // Set up periodic shift overrun check (every 10 minutes)
+  try {
+    chrome.alarms.create('CHECK_SHIFT_OVERRUN', { periodInMinutes: 10 });
+  } catch {
+    // alarms not available
+  }
+
   // Automatically inject content scripts into all existing open FunPay tabs
   try {
     if (typeof chrome !== 'undefined' && chrome.tabs && chrome.scripting) {
@@ -29,6 +36,56 @@ chrome.runtime.onInstalled.addListener(async () => {
   } catch {
     // ignore
   }
+});
+
+// Check for unclosed shifts when browser starts
+chrome.runtime.onStartup?.addListener(async () => {
+  try {
+    const shiftState = await loadShiftState();
+    if (shiftState.shiftActive && shiftState.shiftStartTime) {
+      const elapsedHours = (Date.now() - shiftState.shiftStartTime) / (3600 * 1000);
+      if (elapsedHours >= 3) {
+        chrome.notifications?.create('fphk_shift_startup_alert', {
+          type: 'basic',
+          iconUrl: 'assets/icon128.png',
+          title: '⚠️ Незавершённая смена FunPay',
+          message: `Обнаружена активная смена оператора ${shiftState.currentOperator || 'Оператор 1'}, начатая более ${Math.floor(elapsedHours)} ч. назад. Не забудьте проверить и завершить смену!`
+        });
+      }
+    }
+  } catch {
+    // ignore
+  }
+});
+
+// Alarm handler for shift overrun protection
+chrome.alarms?.onAlarm.addListener(async (alarm) => {
+  if (alarm.name === 'CHECK_SHIFT_OVERRUN') {
+    try {
+      const state = await loadState();
+      const shiftState = await loadShiftState();
+      const thresholdHours = state.settings.shiftOverrunAlertHours ?? 8;
+
+      if (thresholdHours > 0 && shiftState.shiftActive && shiftState.shiftStartTime) {
+        const elapsedHours = (Date.now() - shiftState.shiftStartTime) / (3600 * 1000);
+        if (elapsedHours >= thresholdHours) {
+          chrome.notifications?.create('fphk_shift_overrun_alert', {
+            type: 'basic',
+            iconUrl: 'assets/icon128.png',
+            title: '⏱️ Внимание: длительная смена FunPay',
+            message: `Смена оператора ${shiftState.currentOperator || 'Оператор 1'} длится уже ${Math.floor(elapsedHours)} ч. (порог: ${thresholdHours} ч.). Пожалуйста, завершите смену, если закончили работу.`
+          });
+        }
+      }
+    } catch {
+      // ignore
+    }
+  }
+});
+
+// Open dashboard when clicking notification
+chrome.notifications?.onClicked.addListener(() => {
+  chrome.runtime.openOptionsPage();
 });
 
 // Auto-sync configuration helper (safe no-op)
@@ -145,7 +202,8 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
           const syncResult = await FunPayClient.getInstance().syncAllData(
             state.settings.goldenKey,
             state.settings.developerMode,
-            state.cache.orders || []
+            state.cache.orders || [],
+            false
           );
 
           if (syncResult.success) {
@@ -158,7 +216,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
             };
             await saveCache(newCache);
             await notifyAllFunPayTabs();
-            sendResponse({ success: true, cache: newCache });
+            sendResponse({ success: true, cache: newCache, syncResult });
           } else {
             const updatedCache = {
               ...state.cache,
@@ -168,6 +226,46 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
             await saveCache(updatedCache);
             sendResponse({ success: false, error: syncResult.error, diagnostics: syncResult.diagnostics });
           }
+          break;
+        }
+
+        case 'FETCH_ALL_HISTORY': {
+          const state = await loadState();
+          const syncResult = await FunPayClient.getInstance().syncAllData(
+            state.settings.goldenKey,
+            state.settings.developerMode,
+            state.cache.orders || [],
+            true, // full history mode
+            100   // max pages limit for full history scan
+          );
+
+          if (syncResult.success) {
+            const newCache = {
+              lastSyncTimestamp: Date.now(),
+              accountInfo: syncResult.account,
+              orders: syncResult.orders,
+              diagnosticReport: syncResult.diagnostics?.diagnosticReport,
+              error: null
+            };
+            await saveCache(newCache);
+            await notifyAllFunPayTabs();
+            sendResponse({ success: true, cache: newCache, syncResult });
+          } else {
+            const updatedCache = {
+              ...state.cache,
+              diagnosticReport: syncResult.diagnostics?.diagnosticReport || state.cache?.diagnosticReport,
+              error: syncResult.error || 'Ошибка загрузки полной истории'
+            };
+            await saveCache(updatedCache);
+            sendResponse({ success: false, error: syncResult.error, diagnostics: syncResult.diagnostics });
+          }
+          break;
+        }
+
+        case 'GET_SYNC_PROGRESS': {
+          chrome.storage.local.get(['fphk_sync_progress'], (result) => {
+            sendResponse({ success: true, progress: result.fphk_sync_progress || null });
+          });
           break;
         }
 

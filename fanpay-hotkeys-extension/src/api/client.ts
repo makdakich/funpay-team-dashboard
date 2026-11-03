@@ -356,6 +356,16 @@ export class FunPayClient {
     }
   }
 
+  private async reportProgress(progress: import('../shared/types').SyncProgress): Promise<void> {
+    try {
+      if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+        await chrome.storage.local.set({ fphk_sync_progress: progress });
+      }
+    } catch {
+      // ignore
+    }
+  }
+
   /**
    * Synchronize account identity, real balance and complete trade orders history.
    * Supports multi-page pagination using FunPay continue cursor, safe early termination
@@ -365,7 +375,8 @@ export class FunPayClient {
     goldenKey?: string,
     devMode = false,
     existingOrders: FunPayOrder[] = [],
-    maxPages = 20
+    fetchAllHistory = false,
+    maxPages = fetchAllHistory ? 100 : 20
   ): Promise<FunPaySyncResult> {
     if (!goldenKey || !goldenKey.trim()) {
       return {
@@ -422,9 +433,25 @@ export class FunPayClient {
       };
 
       // 2. Fetch sales history with cursor pagination
+      await this.reportProgress({
+        inProgress: true,
+        page: 1,
+        totalOrdersFetched: 0,
+        newOrdersFetched: 0,
+        stage: 'Загрузка первой страницы заказов...'
+      });
+
       const { html: firstPageHtml, diagnostics: ordersDiag } = await this.executeRequest('https://funpay.com/orders/trade', goldenKey, devMode);
 
       if (!firstPageHtml) {
+        await this.reportProgress({
+          inProgress: false,
+          page: 1,
+          totalOrdersFetched: 0,
+          newOrdersFetched: 0,
+          stage: 'Ошибка загрузки',
+          error: ordersDiag.details || 'Не удалось загрузить историю заказов FunPay.'
+        });
         return {
           success: false,
           account,
@@ -435,6 +462,14 @@ export class FunPayClient {
       }
 
       if (ordersDiag.isCloudflare) {
+        await this.reportProgress({
+          inProgress: false,
+          page: 1,
+          totalOrdersFetched: 0,
+          newOrdersFetched: 0,
+          stage: 'Ошибка Cloudflare',
+          error: 'Синхронизация заказов прервана: защита Cloudflare.'
+        });
         return {
           success: false,
           account,
@@ -444,180 +479,123 @@ export class FunPayClient {
         };
       }
 
-      // --- DIAGNOSTIC INVESTIGATION PIPELINE (3-Page Inspector) ---
-      const diagLogs: string[] = [];
-      diagLogs.push('================================================================================');
-      diagLogs.push('ДИАГНОСТИЧЕСКИЙ ОТЧЁТ ПАГИНАЦИИ И ИСТОРИИ ЗАКАЗОВ FUNPAY');
-      diagLogs.push('================================================================================');
-      diagLogs.push(`Время запуска: ${new Date().toISOString()}`);
-      diagLogs.push(`Пользователь: ${account.username} (Баланс: ${account.totalBalance} ${account.currency})`);
-
-      // 1. Inspect Page 1
-      const p1Inspection = FunPayOrdersAdapter.inspectPaginationForm(firstPageHtml);
       const firstPageOrders = FunPayOrdersAdapter.parse(firstPageHtml);
       const p1Continue = FunPayOrdersAdapter.extractNextContinueId(firstPageHtml);
-
-      diagLogs.push('\n[1. СТРАНИЦА 1]');
-      diagLogs.push(`* URL: https://funpay.com/orders/trade`);
-      diagLogs.push(`* HTTP Status: ${ordersDiag.status}`);
-      diagLogs.push(`* Длина HTML: ${firstPageHtml.length} символов`);
-      diagLogs.push(`* Найдено заказов (карточек): ${firstPageOrders.length}`);
-      if (firstPageOrders.length > 0) {
-        diagLogs.push(`* Самый свежий заказ на стр. 1: #${firstPageOrders[0].id} (дата: ${firstPageOrders[0].dateStr})`);
-        diagLogs.push(`* Самый старый заказ на стр. 1: #${firstPageOrders[firstPageOrders.length - 1].id} (дата: ${firstPageOrders[firstPageOrders.length - 1].dateStr})`);
-      }
-      diagLogs.push(`* Найден ли continue: ${p1Continue ? 'ДА' : 'НЕТ'}`);
-      diagLogs.push(`* Значение continue: ${p1Continue ?? 'отсутствует'}`);
-
-      // Inspect pagination form / button block
-      diagLogs.push('\n[2. БЛОК ПАГИНАЦИИ НА СТРАНИЦЕ 1]');
-      diagLogs.push(`* Form action: ${p1Inspection.formAction ?? 'не указан (отсутствует атрибут action)'}`);
-      diagLogs.push(`* Form method: ${p1Inspection.formMethod ?? 'не указан (отсутствует атрибут method)'}`);
-      diagLogs.push(`* Скрытые поля: ${p1Inspection.hiddenInputs.length > 0 ? p1Inspection.hiddenInputs.map(i => `${i.name}="${i.value}"`).join(', ') : 'скрытые поля не найдены'}`);
-      diagLogs.push(`* Имя поля пагинации: continue (значение: ${p1Inspection.continueValue ?? 'нет'})`);
-      diagLogs.push(`* Сырой HTML-фрагмент блока:\n  ${p1Inspection.snippet.replace(/\s+/g, ' ')}`);
 
       const fetchedOrdersMap = new Map<string, FunPayOrder>();
       for (const order of firstPageOrders) {
         fetchedOrdersMap.set(order.id.toUpperCase(), order);
       }
 
-      // 2. Test Page 2: Compare POST vs GET
-      let p2Continue: string | null = null;
-      let p2WorkingMethod: 'POST' | 'GET' | 'NONE' = 'NONE';
-      let page2Orders: FunPayOrder[] = [];
+      let currentContinue = p1Continue;
+      let currentPage = 1;
+      let workingMethod: 'POST' | 'GET' = 'POST';
 
-      if (p1Continue) {
-        diagLogs.push('\n[3. СТРАНИЦА 2 — ТЕСТИРОВАНИЕ POST vs GET]');
+      await this.reportProgress({
+        inProgress: true,
+        page: 1,
+        totalOrdersFetched: firstPageOrders.length,
+        newOrdersFetched: firstPageOrders.length,
+        oldestOrderDate: firstPageOrders.length > 0 ? firstPageOrders[firstPageOrders.length - 1].dateStr : undefined,
+        stage: `Страница 1: найдено ${firstPageOrders.length} заказов`
+      });
 
-        // 2a. POST test
-        const postUrl = 'https://funpay.com/orders/trade';
-        const postBody = `continue=${encodeURIComponent(p1Continue)}`;
-        const { html: postHtml, diagnostics: postDiag } = await this.executeRequest(
-          postUrl,
-          goldenKey,
-          devMode,
-          {
-            method: 'POST',
-            body: postBody,
-            headers: {
-              'Content-Type': 'application/x-www-form-urlencoded',
-              'X-Requested-With': 'XMLHttpRequest'
-            }
-          }
-        );
-        const postOrders = FunPayOrdersAdapter.parse(postHtml);
-        const postNextContinue = FunPayOrdersAdapter.extractNextContinueId(postHtml);
-        const postNewOrders = postOrders.filter(o => !fetchedOrdersMap.has(o.id.toUpperCase()));
+      const existingIds = new Set(existingOrders.map(o => o.id.toUpperCase()));
 
-        diagLogs.push(`* Тест POST: URL=${postUrl}, body="${postBody}"`);
-        diagLogs.push(`  - HTTP status: ${postDiag.status}, HTML длина: ${postHtml.length}`);
-        diagLogs.push(`  - Распарсено заказов: ${postOrders.length} (из них НОВЫХ, отсутствующих на стр. 1: ${postNewOrders.length})`);
-        if (postOrders.length > 0) {
-          diagLogs.push(`  - Первый: #${postOrders[0].id} (${postOrders[0].dateStr}), Последний: #${postOrders[postOrders.length - 1].id} (${postOrders[postOrders.length - 1].dateStr})`);
-        }
-        diagLogs.push(`  - Следующий continue: ${postNextContinue ?? 'нет'}`);
+      // 3. Multi-page pagination loop
+      while (currentContinue && currentPage < maxPages) {
+        currentPage++;
 
-        // 2b. GET test
-        const getUrl = `https://funpay.com/orders/trade?continue=${encodeURIComponent(p1Continue)}`;
-        const { html: getHtml, diagnostics: getDiag } = await this.executeRequest(
-          getUrl,
-          goldenKey,
-          devMode,
-          { method: 'GET' }
-        );
-        const getOrders = FunPayOrdersAdapter.parse(getHtml);
-        const getNextContinue = FunPayOrdersAdapter.extractNextContinueId(getHtml);
-        const getNewOrders = getOrders.filter(o => !fetchedOrdersMap.has(o.id.toUpperCase()));
+        let pageHtml = '';
+        let pageDiag: FunPayDiagnostics | null = null;
 
-        diagLogs.push(`* Тест GET: URL=${getUrl}`);
-        diagLogs.push(`  - HTTP status: ${getDiag.status}, HTML длина: ${getHtml.length}`);
-        diagLogs.push(`  - Распарсено заказов: ${getOrders.length} (из них НОВЫХ, отсутствующих на стр. 1: ${getNewOrders.length})`);
-        if (getOrders.length > 0) {
-          diagLogs.push(`  - Первый: #${getOrders[0].id} (${getOrders[0].dateStr}), Последний: #${getOrders[getOrders.length - 1].id} (${getOrders[getOrders.length - 1].dateStr})`);
-        }
-        diagLogs.push(`  - Следующий continue: ${getNextContinue ?? 'нет'}`);
-
-        // Choose the method that provided new orders
-        if (postNewOrders.length > 0) {
-          p2WorkingMethod = 'POST';
-          page2Orders = postOrders;
-          p2Continue = postNextContinue;
-        } else if (getNewOrders.length > 0) {
-          p2WorkingMethod = 'GET';
-          page2Orders = getOrders;
-          p2Continue = getNextContinue;
-        } else if (postOrders.length > 0) {
-          p2WorkingMethod = 'POST';
-          page2Orders = postOrders;
-          p2Continue = postNextContinue;
-        } else if (getOrders.length > 0) {
-          p2WorkingMethod = 'GET';
-          page2Orders = getOrders;
-          p2Continue = getNextContinue;
-        }
-
-        diagLogs.push(`* ВЫБОР МЕТОДА: ${p2WorkingMethod} (новых заказов: ${page2Orders.length})`);
-
-        for (const order of page2Orders) {
-          fetchedOrdersMap.set(order.id.toUpperCase(), order);
-        }
-      } else {
-        diagLogs.push('\n[3. СТРАНИЦА 2]');
-        diagLogs.push('* Пропущена: поле continue на первой странице не найдено.');
-      }
-
-      // 3. Test Page 3
-      let page3Orders: FunPayOrder[] = [];
-      let p3Continue: string | null = null;
-      if (p2Continue) {
-        diagLogs.push('\n[4. СТРАНИЦА 3]');
-        const p3Method = p2WorkingMethod === 'GET' ? 'GET' : 'POST';
-        const p3Url = p3Method === 'GET'
-          ? `https://funpay.com/orders/trade?continue=${encodeURIComponent(p2Continue)}`
-          : 'https://funpay.com/orders/trade';
-        const p3Options = p3Method === 'POST'
-          ? {
+        // Try POST first
+        if (workingMethod === 'POST') {
+          const res = await this.executeRequest(
+            'https://funpay.com/orders/trade',
+            goldenKey,
+            devMode,
+            {
               method: 'POST',
-              body: `continue=${encodeURIComponent(p2Continue)}`,
+              body: `continue=${encodeURIComponent(currentContinue)}`,
               headers: {
                 'Content-Type': 'application/x-www-form-urlencoded',
                 'X-Requested-With': 'XMLHttpRequest'
               }
             }
-          : { method: 'GET' };
-
-        const { html: p3Html, diagnostics: p3Diag } = await this.executeRequest(
-          p3Url,
-          goldenKey,
-          devMode,
-          p3Options
-        );
-        page3Orders = FunPayOrdersAdapter.parse(p3Html);
-        p3Continue = FunPayOrdersAdapter.extractNextContinueId(p3Html);
-        const p3NewOrders = page3Orders.filter(o => !fetchedOrdersMap.has(o.id.toUpperCase()));
-
-        diagLogs.push(`* Метод: ${p3Method}, URL: ${p3Url}`);
-        diagLogs.push(`* HTTP Status: ${p3Diag.status}, Длина HTML: ${p3Html.length}`);
-        diagLogs.push(`* Распарсено заказов: ${page3Orders.length} (из них НОВЫХ: ${p3NewOrders.length})`);
-        if (page3Orders.length > 0) {
-          diagLogs.push(`* Первый заказ на стр. 3: #${page3Orders[0].id} (дата: ${page3Orders[0].dateStr})`);
-          diagLogs.push(`* Последний заказ на стр. 3: #${page3Orders[page3Orders.length - 1].id} (дата: ${page3Orders[page3Orders.length - 1].dateStr})`);
+          );
+          pageHtml = res.html;
+          pageDiag = res.diagnostics;
         }
-        diagLogs.push(`* Следующий continue после стр. 3: ${p3Continue ?? 'нет'}`);
 
-        for (const order of page3Orders) {
-          fetchedOrdersMap.set(order.id.toUpperCase(), order);
+        let pageOrders = pageHtml ? FunPayOrdersAdapter.parse(pageHtml) : [];
+
+        // If POST returned 0 orders or failed, try GET fallback
+        if (pageOrders.length === 0) {
+          const res = await this.executeRequest(
+            `https://funpay.com/orders/trade?continue=${encodeURIComponent(currentContinue)}`,
+            goldenKey,
+            devMode,
+            { method: 'GET' }
+          );
+          if (res.html) {
+            const getOrders = FunPayOrdersAdapter.parse(res.html);
+            if (getOrders.length > 0) {
+              workingMethod = 'GET';
+              pageHtml = res.html;
+              pageDiag = res.diagnostics;
+              pageOrders = getOrders;
+            }
+          }
         }
-      } else {
-        diagLogs.push('\n[4. СТРАНИЦА 3]');
-        diagLogs.push('* Пропущена: на второй странице отсутствует следующий continue.');
+
+        if (pageOrders.length === 0) {
+          debugLog(devMode, `Page ${currentPage} returned 0 orders. Reached end of history.`);
+          break;
+        }
+
+        let newOrdersOnPage = 0;
+        let existingOrdersHit = 0;
+
+        for (const order of pageOrders) {
+          const upperId = order.id.toUpperCase();
+          if (!fetchedOrdersMap.has(upperId)) {
+            newOrdersOnPage++;
+            fetchedOrdersMap.set(upperId, order);
+          }
+          if (existingIds.has(upperId)) {
+            existingOrdersHit++;
+          }
+        }
+
+        const nextContinue = FunPayOrdersAdapter.extractNextContinueId(pageHtml);
+
+        await this.reportProgress({
+          inProgress: true,
+          page: currentPage,
+          totalOrdersFetched: fetchedOrdersMap.size,
+          newOrdersFetched: newOrdersOnPage,
+          oldestOrderDate: pageOrders[pageOrders.length - 1]?.dateStr,
+          stage: `Страница ${currentPage}: загружено +${pageOrders.length} заказов (всего ${fetchedOrdersMap.size})`
+        });
+
+        // Incremental sync early stopping:
+        // If not full history mode and all orders on this page are already known, stop!
+        if (!fetchAllHistory && existingOrdersHit === pageOrders.length && existingOrders.length > 0) {
+          debugLog(devMode, `Incremental sync reached known orders on page ${currentPage}. Stopping.`);
+          break;
+        }
+
+        // Prevent infinite loops on broken/static cursor
+        if (!nextContinue || nextContinue === currentContinue) {
+          debugLog(devMode, `No further continue cursor found on page ${currentPage}. Reached end of history.`);
+          break;
+        }
+
+        currentContinue = nextContinue;
       }
 
       // 4. Merge freshly fetched orders with existing cached orders
-      const totalRawFetched = firstPageOrders.length + page2Orders.length + page3Orders.length;
-      const totalFreshDeduped = fetchedOrdersMap.size;
-
       const mergedMap = new Map<string, FunPayOrder>();
       for (const order of existingOrders) {
         mergedMap.set(order.id.toUpperCase(), order);
@@ -628,43 +606,16 @@ export class FunPayClient {
 
       // Sort by UTC timestamp descending (newest first)
       const allOrders = Array.from(mergedMap.values()).sort((a, b) => b.timestamp - a.timestamp);
-      const freshlyFetchedSorted = Array.from(fetchedOrdersMap.values()).sort((a, b) => b.timestamp - a.timestamp);
 
-      diagLogs.push('\n[5. МЕТРИКИ PIPELINE И КЕША]');
-      diagLogs.push(`* Стр. 1: заказов ${firstPageOrders.length}${firstPageOrders.length > 0 ? `, даты от "${firstPageOrders[0].dateStr}" до "${firstPageOrders[firstPageOrders.length - 1].dateStr}"` : ''}, continue = ${p1Continue ?? 'нет'}`);
-      diagLogs.push(`* Стр. 2: заказов ${page2Orders.length}${page2Orders.length > 0 ? `, даты от "${page2Orders[0].dateStr}" до "${page2Orders[page2Orders.length - 1].dateStr}"` : ''}, continue = ${p2Continue ?? 'нет'}`);
-      diagLogs.push(`* Стр. 3: заказов ${page3Orders.length}${page3Orders.length > 0 ? `, даты от "${page3Orders[0].dateStr}" до "${page3Orders[page3Orders.length - 1].dateStr}"` : ''}, continue = ${p3Continue ?? 'нет'}`);
-      diagLogs.push(`* Всего скачано (сумма карточек со всех 3 страниц): ${totalRawFetched}`);
-      diagLogs.push(`* Уникальных заказов после дедупликации в текущей сессии: ${totalFreshDeduped}`);
-      diagLogs.push(`* Заказов было в локальном кеше: ${existingOrders.length}`);
-      diagLogs.push(`* Итого заказов после слияния с кешем: ${allOrders.length}`);
-      if (freshlyFetchedSorted.length > 0) {
-        const oldestFresh = freshlyFetchedSorted[freshlyFetchedSorted.length - 1];
-        diagLogs.push(`* Самый старый заказ в СКАЧАННЫХ данных: #${oldestFresh.id} (дата: ${oldestFresh.dateStr})`);
-      }
-      if (allOrders.length > 0) {
-        const oldestCached = allOrders[allOrders.length - 1];
-        diagLogs.push(`* Самый старый заказ в ИТОГОВОМ КЕШЕ: #${oldestCached.id} (дата: ${oldestCached.dateStr})`);
-      }
-
-      diagLogs.push('\n[6. ТОП-5 САМЫХ СВЕЖИХ ЗАКАЗОВ]');
-      const top5Newest = allOrders.slice(0, 5);
-      top5Newest.forEach((o, i) => {
-        diagLogs.push(`  ${i + 1}. #${o.id} | ${o.dateStr} | ${o.price !== null ? `${o.price} ${o.currency}` : 'нет цены'} | ${o.status} | Покупатель: ${o.buyerUsername || '—'}`);
+      await this.reportProgress({
+        inProgress: false,
+        page: currentPage,
+        totalOrdersFetched: allOrders.length,
+        newOrdersFetched: fetchedOrdersMap.size,
+        stage: `Синхронизация завершена. Всего в базе: ${allOrders.length} заказов (${currentPage} стр.)`,
+        complete: true
       });
 
-      diagLogs.push('\n[7. ТОП-5 САМЫХ СТАРЫХ ЗАКАЗОВ]');
-      const top5Oldest = allOrders.slice(Math.max(0, allOrders.length - 5)).reverse();
-      top5Oldest.forEach((o, i) => {
-        diagLogs.push(`  ${i + 1}. #${o.id} | ${o.dateStr} | ${o.price !== null ? `${o.price} ${o.currency}` : 'нет цены'} | ${o.status} | Покупатель: ${o.buyerUsername || '—'}`);
-      });
-
-      diagLogs.push('================================================================================');
-
-      const fullReportText = diagLogs.join('\n');
-      ordersDiag.diagnosticReport = fullReportText;
-
-      console.log(fullReportText);
       debugLog(
         devMode,
         `FunPay sync complete: user=${account.username}, balance=${account.totalBalance}, totalOrders=${allOrders.length}`
@@ -674,10 +625,21 @@ export class FunPayClient {
         success: true,
         account,
         orders: allOrders,
+        pagesFetched: currentPage,
+        totalFetched: allOrders.length,
+        newFetched: fetchedOrdersMap.size,
         diagnostics: ordersDiag
       };
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Не удалось синхронизировать данные с FunPay';
+      await this.reportProgress({
+        inProgress: false,
+        page: 0,
+        totalOrdersFetched: 0,
+        newOrdersFetched: 0,
+        stage: 'Ошибка синхронизации',
+        error: msg
+      });
       return {
         success: false,
         account: null,

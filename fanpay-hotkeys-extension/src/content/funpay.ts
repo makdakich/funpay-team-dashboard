@@ -1,8 +1,9 @@
-import { ExtensionState, FunPayContext } from '../shared/types';
+import { ExtensionState, FunPayContext, ShiftState } from '../shared/types';
 import { FunPayDomAdapter } from './adapter';
 import { HotkeyManager } from './hotkeys';
 import { FunPayPanel } from './panel';
-import { loadState } from '../storage/storage';
+import { ShiftHudWidget } from './shift-widget';
+import { loadState, loadShiftState } from '../storage/storage';
 import { debugLog } from '../shared/utils';
 
 // Global guard against double execution
@@ -15,7 +16,9 @@ declare global {
 class FunPayContentController {
   private hotkeys = new HotkeyManager();
   private panel = new FunPayPanel();
+  private shiftWidget = new ShiftHudWidget();
   private state: ExtensionState | null = null;
+  private shiftState: ShiftState | null = null;
   private observer: MutationObserver | null = null;
 
   public async init() {
@@ -24,10 +27,15 @@ class FunPayContentController {
 
     debugLog(false, 'FanPay Content Script initializing on', window.location.href);
 
-    // 1. Load state directly from storage for instant responsiveness
+    // 1. Load state and shift state directly from storage for instant responsiveness
     try {
       const localState = await loadState();
+      const localShift = await loadShiftState();
+      this.shiftState = localShift;
       this.applyState(localState);
+      if (localShift) {
+        this.shiftWidget.init(localShift, localState);
+      }
     } catch {
       // Storage access will be retried via background message
     }
@@ -37,6 +45,13 @@ class FunPayContentController {
       const response = await chrome.runtime.sendMessage({ type: 'GET_STATE' });
       if (response && response.state) {
         this.applyState(response.state);
+      }
+      const shiftResp = await chrome.runtime.sendMessage({ type: 'GET_SHIFT_STATE' });
+      if (shiftResp && shiftResp.shiftState) {
+        this.shiftState = shiftResp.shiftState;
+        if (this.state) {
+          this.shiftWidget.updateState(shiftResp.shiftState, this.state);
+        }
       }
     } catch {
       // Background might be waking up, localState is already active
@@ -55,6 +70,9 @@ class FunPayContentController {
       state.settings,
       (profileId) => this.handleProfileChange(profileId)
     );
+    if (this.shiftState) {
+      this.shiftWidget.updateState(this.shiftState, state);
+    }
   }
 
   private handleProfileChange(profileId: string) {

@@ -66,13 +66,62 @@
       <section id="tab-dashboard" class="tab-pane active">
         <div class="page-header">
           <div>
-            <h1 class="page-title">Финансовая статистика</h1>
-            <p class="page-subtitle">Локальный расчет оборота, возвратов и вашей доли на FunPay</p>
+            <h1 class="page-title">Финансовая статистика & Дашборд</h1>
+            <p class="page-subtitle">Локальный расчет оборота, возвратов и вашей доли на FunPay с полной историей продаж</p>
           </div>
           <div class="header-actions">
+            <button id="btn-fetch-all-history" class="btn btn-secondary" title="Загрузить всю доступную историю продаж через пагинацию">
+              <span class="icon">📥</span> Загрузить всю историю
+            </button>
             <button id="btn-dashboard-sync" class="btn btn-primary">
               <span class="icon">🔄</span> Обновить данные
             </button>
+          </div>
+        </div>
+
+        <!-- Sync Progress Banner -->
+        <div id="sync-progress-banner" class="card sync-progress-card" style="display: none;">
+          <div class="progress-header">
+            <div class="progress-title-group">
+              <span class="progress-spinner">⏳</span>
+              <span id="sync-progress-text" class="progress-title">Загрузка полной истории продаж FunPay...</span>
+            </div>
+            <span id="sync-progress-counter" class="badge-status badge-on">0 заказов</span>
+          </div>
+          <div class="progress-bar-wrap">
+            <div id="sync-progress-bar" class="progress-bar-fill"></div>
+          </div>
+          <div id="sync-progress-sub" class="progress-sub">Идет последовательное получение страниц истории без перегрузки сайта...</div>
+        </div>
+
+        <!-- Active Shift Live Widget on Dashboard -->
+        <div id="dashboard-active-shift" class="card active-shift-dashboard-card" style="display: none;">
+          <div class="dash-shift-left">
+            <div class="dash-shift-badge"><span class="fphk-dot-pulse"></span> Смена активна</div>
+            <div class="dash-shift-operator" id="dash-shift-op">👤 Оператор 1</div>
+            <div class="dash-shift-time" id="dash-shift-start">Начало: --:--:--</div>
+          </div>
+          <div class="dash-shift-center">
+            <div class="dash-shift-timer-label">Длительность смены</div>
+            <div class="dash-shift-timer-val" id="dash-shift-timer">00:00:00</div>
+            <div class="dash-shift-live-earnings" id="dash-shift-earnings">Заказов: 0 • Выручка: 0 ₽</div>
+          </div>
+          <div class="dash-shift-right">
+            <button id="btn-dash-stop-shift" class="btn btn-danger">
+              <span class="icon">🛑</span> Завершить смену
+            </button>
+          </div>
+        </div>
+
+        <!-- Coverage & Data Span Banner -->
+        <div class="card history-coverage-card" id="history-coverage-card">
+          <div class="coverage-row">
+            <span class="coverage-icon">📊</span>
+            <div class="coverage-info">
+              <span class="coverage-title">Охват базы заказов:</span>
+              <span id="coverage-span-text" class="coverage-text">Загрузка истории...</span>
+            </div>
+            <div class="coverage-meta" id="coverage-meta-text">0 заказов в базе</div>
           </div>
         </div>
 
@@ -541,6 +590,31 @@
               <input type="checkbox" id="setting-panel-docked">
               <span class="slider"></span>
             </label>
+          </div>
+
+          <div class="setting-row">
+            <div class="setting-info">
+              <div class="setting-title">Плавающий виджет смены на FunPay</div>
+              <div class="setting-desc">Отображать компактный виджет с таймером, оператором и кнопкой завершения на страницах FunPay</div>
+            </div>
+            <label class="switch">
+              <input type="checkbox" id="setting-shift-widget-visible">
+              <span class="slider"></span>
+            </label>
+          </div>
+
+          <div class="setting-row">
+            <div class="setting-info">
+              <div class="setting-title">Защита от забытых смен (порог уведомления)</div>
+              <div class="setting-desc">Системное уведомление браузера при превышении времени смены</div>
+            </div>
+            <select id="setting-shift-overrun-hours" class="custom-select select-inline">
+              <option value="6">Через 6 часов</option>
+              <option value="8" selected>Через 8 часов (рекомендуется)</option>
+              <option value="10">Через 10 часов</option>
+              <option value="12">Через 12 часов</option>
+              <option value="0">Отключено</option>
+            </select>
           </div>
 
           <div class="setting-row">

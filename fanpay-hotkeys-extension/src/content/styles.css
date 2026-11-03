@@ -229,3 +229,313 @@
     transform: translateY(0);
   }
 }
+
+/* ==========================================================================
+   FLOATING SHIFT HUD WIDGET (ON-PAGE INDICATOR)
+   ========================================================================== */
+.fphk-shift-widget {
+  position: fixed;
+  z-index: 999998;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  box-sizing: border-box;
+  user-select: none;
+}
+
+.fphk-shift-widget * {
+  box-sizing: border-box;
+}
+
+/* Minimized Pill Mode */
+.fphk-widget-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: #090D16;
+  border: 1px solid #10B981;
+  border-radius: 20px;
+  padding: 6px 12px;
+  color: #F8FAFC;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4), 0 0 10px rgba(16, 185, 129, 0.2);
+  cursor: grab;
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.fphk-widget-pill:active {
+  cursor: grabbing;
+}
+
+.fphk-pill-op {
+  color: #E2E8F0;
+  font-weight: 600;
+}
+
+.fphk-pill-timer {
+  font-variant-numeric: tabular-nums;
+  font-family: monospace;
+  color: #10B981;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+
+.fphk-pill-turnover {
+  color: #94A3B8;
+  border-left: 1px solid #1E293B;
+  padding-left: 8px;
+}
+
+.fphk-pill-btn-toggle {
+  background: transparent;
+  border: none;
+  color: #64748B;
+  font-size: 13px;
+  cursor: pointer;
+  padding: 0 2px;
+  margin-left: 2px;
+  line-height: 1;
+}
+
+.fphk-pill-btn-toggle:hover {
+  color: #F8FAFC;
+}
+
+/* Expanded Card Mode */
+.fphk-widget-card {
+  width: 250px;
+  background: #090D16;
+  border: 1px solid #1E293B;
+  border-radius: 10px;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.6), 0 8px 10px -6px rgba(0, 0, 0, 0.4);
+  overflow: hidden;
+  color: #F8FAFC;
+}
+
+.fphk-widget-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  background: #111827;
+  border-bottom: 1px solid #1E293B;
+  cursor: grab;
+}
+
+.fphk-widget-header:active {
+  cursor: grabbing;
+}
+
+.fphk-header-left {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.fphk-widget-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: #10B981;
+}
+
+.fphk-dot-pulse {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: #10B981;
+  box-shadow: 0 0 8px #10B981;
+  animation: fphkPulse 2s infinite;
+}
+
+@keyframes fphkPulse {
+  0% { transform: scale(0.95); opacity: 0.8; }
+  50% { transform: scale(1.2); opacity: 1; box-shadow: 0 0 12px #10B981; }
+  100% { transform: scale(0.95); opacity: 0.8; }
+}
+
+.fphk-btn-icon {
+  background: transparent;
+  border: none;
+  color: #94A3B8;
+  font-size: 13px;
+  cursor: pointer;
+  padding: 2px 4px;
+  line-height: 1;
+  border-radius: 4px;
+}
+
+.fphk-btn-icon:hover {
+  color: #F8FAFC;
+  background: #1E293B;
+}
+
+.fphk-widget-body {
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.fphk-row-op {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+}
+
+.fphk-op-name {
+  font-weight: 600;
+  color: #F8FAFC;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fphk-start-time {
+  font-size: 11px;
+  color: #64748B;
+}
+
+.fphk-timer-block {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 6px 10px;
+  background: #111827;
+  border: 1px solid #1E293B;
+  border-radius: 6px;
+}
+
+.fphk-timer-val {
+  font-family: monospace;
+  font-size: 20px;
+  font-weight: 700;
+  color: #10B981;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.5px;
+}
+
+.fphk-timer-badge {
+  font-size: 11px;
+  color: #94A3B8;
+  background: #1F2937;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.fphk-earnings-box {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 11px;
+  background: #0B0F19;
+  border: 1px solid #1E293B;
+  padding: 6px 8px;
+  border-radius: 6px;
+}
+
+.fphk-earn-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.fphk-earn-label {
+  color: #64748B;
+}
+
+.fphk-earn-val {
+  font-weight: 600;
+  color: #F8FAFC;
+  font-variant-numeric: tabular-nums;
+}
+
+.fphk-share-row {
+  border-top: 1px solid #1E293B;
+  padding-top: 3px;
+  margin-top: 2px;
+}
+
+.fphk-share-val {
+  color: #10B981;
+}
+
+.fphk-widget-footer {
+  margin-top: 4px;
+}
+
+.fphk-btn-stop {
+  width: 100%;
+  padding: 6px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  background: #DC2626;
+  color: #FFFFFF;
+  border: 1px solid #EF4444;
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: background-color 0.15s;
+}
+
+.fphk-btn-stop:hover {
+  background: #B91C1C;
+}
+
+/* Confirmation Modal inside Card */
+.fphk-confirm-card {
+  padding: 12px;
+  text-align: center;
+}
+
+.fphk-confirm-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #EF4444;
+  margin-bottom: 6px;
+}
+
+.fphk-confirm-desc {
+  font-size: 12px;
+  color: #94A3B8;
+  margin-bottom: 12px;
+  line-height: 1.4;
+}
+
+.fphk-confirm-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.fphk-confirm-actions .fphk-btn {
+  flex: 1;
+  padding: 6px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.fphk-btn-danger {
+  background: #DC2626;
+  border: 1px solid #EF4444;
+  color: #FFFFFF;
+}
+
+.fphk-btn-danger:hover {
+  background: #B91C1C;
+}
+
+.fphk-btn-secondary {
+  background: #1E293B;
+  border: 1px solid #334155;
+  color: #F8FAFC;
+}
+
+.fphk-btn-secondary:hover {
+  background: #334155;
+}

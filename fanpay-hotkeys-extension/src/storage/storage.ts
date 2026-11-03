@@ -213,10 +213,25 @@ export async function loadShiftState(): Promise<ShiftState> {
  * Start a new shift in chrome.storage.local
  */
 export async function startShift(operatorName?: string, note?: string): Promise<ShiftState> {
-  const now = Date.now();
+  const current = await loadShiftState();
   const state = await loadState();
   const operator = (operatorName && operatorName.trim()) || state.settings.lastOperator || 'Оператор 1';
 
+  // Guard against double start: preserve original shiftStartTime if already active
+  if (current.shiftActive && current.shiftStartTime) {
+    if (operatorName && operatorName.trim() && operatorName !== current.currentOperator) {
+      const updatedState: ShiftState = {
+        ...current,
+        currentOperator: operator,
+        note: note !== undefined ? note : current.note
+      };
+      await chrome.storage.local.set({ [STORAGE_KEYS.SHIFT_STATE]: updatedState });
+      return updatedState;
+    }
+    return current;
+  }
+
+  const now = Date.now();
   // Update operator in settings if new
   const existingList = state.settings.operatorsList || ['Оператор 1'];
   const updatedOperators = Array.from(new Set([...existingList, operator]));

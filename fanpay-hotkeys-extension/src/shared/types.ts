@@ -39,6 +39,13 @@ export interface AppSettings {
   goldenKey?: string; // Manual user credential token (golden_key cookie value)
   operatorsList?: string[]; // Saved list of worker/operator names for easy selection
   lastOperator?: string; // Last selected worker/operator name
+  shiftOverrunAlertHours?: number; // Alert threshold in hours (e.g. 8; 0 = disabled)
+  shiftWidgetVisible?: boolean; // Whether floating shift HUD widget on FunPay is visible
+  shiftWidgetPosition?: {
+    top?: number;
+    left?: number;
+    minimized?: boolean;
+  };
 }
 
 export type OrderStatus = 'paid' | 'closed' | 'refunded' | 'unknown';
@@ -182,6 +189,17 @@ export interface ShiftState {
   note?: string;
 }
 
+export interface SyncProgress {
+  inProgress: boolean;
+  page: number;
+  totalOrdersFetched: number;
+  newOrdersFetched: number;
+  oldestOrderDate?: string;
+  stage: string;
+  error?: string | null;
+  complete?: boolean;
+}
+
 export type ExtensionMessage =
   | { type: 'GET_STATE' }
   | { type: 'UPDATE_SETTINGS'; payload: Partial<AppSettings> }
@@ -193,6 +211,8 @@ export type ExtensionMessage =
   | { type: 'REORDER_TEMPLATES'; payload: { templateIds: string[] } }
   | { type: 'TEST_API_CONNECTION'; payload?: { goldenKey?: string } }
   | { type: 'SYNC_DATA'; payload?: { force?: boolean } }
+  | { type: 'FETCH_ALL_HISTORY' }
+  | { type: 'GET_SYNC_PROGRESS' }
   | { type: 'CLEAR_API_CREDENTIALS' }
   | { type: 'INSERT_MESSAGE'; payload: { text: string } }
   | { type: 'EXPORT_BACKUP' }

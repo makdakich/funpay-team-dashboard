@@ -23,6 +23,9 @@ export interface FunPaySyncResult {
   success: boolean;
   account: FunPayAccountInfo | null;
   orders: FunPayOrder[];
+  pagesFetched?: number;
+  totalFetched?: number;
+  newFetched?: number;
   error?: string;
   diagnostics?: FunPayDiagnostics;
 }

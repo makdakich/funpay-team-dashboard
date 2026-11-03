@@ -183,5 +183,12 @@ export const DEFAULT_SETTINGS: AppSettings = {
   autoSyncIntervalMinutes: 15,
   goldenKey: '',
   operatorsList: ['Оператор 1'],
-  lastOperator: 'Оператор 1'
+  lastOperator: 'Оператор 1',
+  shiftOverrunAlertHours: 8,
+  shiftWidgetVisible: true,
+  shiftWidgetPosition: {
+    top: 70,
+    left: 20,
+    minimized: false
+  }
 };

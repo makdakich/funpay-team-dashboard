@@ -72,58 +72,58 @@ def get_dark_theme_qss(accent_name: str = "emerald") -> str:
     return f"""
 /* Global Window & Font */
 QWidget {{
-    background-color: #121214;
-    color: #e4e4e7;
-    font-family: 'Segoe UI', Arial, sans-serif;
+    background-color: #090D16;
+    color: #F8FAFC;
+    font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Arial, sans-serif;
     font-size: 13px;
     selection-background-color: {theme['primary']};
     selection-color: #ffffff;
 }}
 
 QMainWindow {{
-    background-color: #121214;
+    background-color: #090D16;
 }}
 
 QFrame#HeaderFrame {{
-    background-color: #18181b;
-    border-bottom: 1px solid #27272a;
+    background-color: #0B0F19;
+    border-bottom: 1px solid #1E293B;
     min-height: 52px;
     max-height: 54px;
 }}
 
 QFrame#LeftPanel {{
-    background-color: #18181b;
-    border-right: 1px solid #27272a;
+    background-color: #0B0F19;
+    border-right: 1px solid #1E293B;
 }}
 
 QFrame#RightPanel {{
-    background-color: #121214;
+    background-color: #090D16;
 }}
 
 /* Buttons */
 QPushButton {{
-    background-color: #27272a;
-    color: #f4f4f5;
-    border: 1px solid #3f3f46;
+    background-color: #111827;
+    color: #F8FAFC;
+    border: 1px solid #1E293B;
     border-radius: 6px;
-    padding: 6px 12px;
+    padding: 6px 14px;
     font-weight: 500;
 }}
 
 QPushButton:hover {{
-    background-color: #3f3f46;
-    border-color: #52525b;
+    background-color: #1E293B;
+    border-color: #334155;
 }}
 
 QPushButton:pressed {{
-    background-color: #202024;
+    background-color: #0B0F19;
     border-color: {theme['primary']};
 }}
 
 QPushButton:disabled {{
-    background-color: #18181b;
-    color: #52525b;
-    border-color: #27272a;
+    background-color: #0B0F19;
+    color: #64748B;
+    border-color: #1E293B;
 }}
 
 /* Primary Action Buttons */

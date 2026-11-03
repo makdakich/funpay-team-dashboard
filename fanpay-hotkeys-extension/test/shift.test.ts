@@ -354,3 +354,35 @@ test('recalculateShifts updates earnings across all historical shifts using cach
   assert.equal(resShift1.earnings?.turnoverByCurrency['₽'], 200);
   assert.equal(resShift1.earnings?.sellerShareByCurrency['₽'], 100);
 });
+
+// 6. Protection tests against forgotten shifts and double start/stop
+test('Protection against double start preserves original shiftStartTime', async () => {
+  setupChromeStorageMock();
+
+  // First start
+  const first = await startShift('Иван', 'Первый запуск');
+  assert.equal(first.shiftActive, true);
+  const originalStartTime = first.shiftStartTime;
+  assert.ok(typeof originalStartTime === 'number');
+
+  // Small delay
+  await new Promise((r) => setTimeout(r, 20));
+
+  // Accidental second start call while already active
+  const second = await startShift('Иван (повтор)', 'Случайный запуск');
+  assert.equal(second.shiftActive, true);
+  // Must preserve the original startTime:
+  assert.equal(second.shiftStartTime, originalStartTime);
+
+  // Stop shift
+  const stopRes = await stopShift();
+  assert.equal(stopRes.shiftState.shiftActive, false);
+  assert.equal(stopRes.completedShift?.startTime, originalStartTime);
+
+  // Redundant second stop does not create duplicate entries
+  const redundantStop = await stopShift();
+  assert.equal(redundantStop.completedShift, null);
+  const history = await loadShiftHistory();
+  assert.equal(history.length, 1);
+});
+
