@@ -123,12 +123,10 @@ export class ShiftHudWidget {
     if (this.isMinimized) {
       this.container.classList.add('fphk-minimized');
       this.container.innerHTML = `
-        <div class="fphk-widget-pill" title="Нажмите чтобы развернуть виджет смены">
+        <div class="fphk-widget-pill fphk-stealth-pill" id="fphk-minimized-pill" title="Смена активна • Нажмите, чтобы развернуть">
           <span class="fphk-dot-pulse"></span>
-          <span class="fphk-pill-op">${this.escapeHtml(operator)}</span>
-          <span class="fphk-pill-timer" id="fphk-timer-display">${durationFormatted}</span>
-          <span class="fphk-pill-turnover">${turnoverText}</span>
-          <button class="fphk-pill-btn-toggle" id="fphk-btn-widget-toggle" title="Развернуть">⛶</button>
+          <span class="fphk-pill-label">Смена</span>
+          <button class="fphk-pill-btn-toggle" id="fphk-btn-widget-toggle" title="Развернуть смену">⛶</button>
         </div>
       `;
     } else {
@@ -154,7 +152,7 @@ export class ShiftHudWidget {
                 <span class="fphk-widget-title">Смена активна</span>
               </div>
               <div class="fphk-header-actions">
-                <button class="fphk-btn-icon" id="fphk-btn-widget-toggle" title="Свернуть в компактный режим">—</button>
+                <button class="fphk-btn-icon" id="fphk-btn-widget-toggle" title="Свернуть (скрыть имя, время и выручку)">—</button>
               </div>
             </div>
 
@@ -210,6 +208,19 @@ export class ShiftHudWidget {
       });
     }
 
+    // Direct click on pill expands back to full widget
+    const minPill = this.container.querySelector('#fphk-minimized-pill');
+    if (minPill) {
+      minPill.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (this.isMinimized) {
+          this.isMinimized = false;
+          this.savePosition();
+          this.updateContent();
+        }
+      });
+    }
+
     // Request Stop
     const reqStopBtn = this.container.querySelector('#fphk-btn-request-stop');
     if (reqStopBtn) {
@@ -254,12 +265,15 @@ export class ShiftHudWidget {
   private attachDragEvents() {
     if (!this.container) return;
 
+    let hasMoved = false;
+
     const onMouseDown = (e: MouseEvent) => {
       // Don't drag if clicked on button or input
       const target = e.target as HTMLElement;
       if (target.closest('button') || target.closest('input')) return;
 
       this.isDragging = true;
+      hasMoved = false;
       this.dragStartX = e.clientX;
       this.dragStartY = e.clientY;
       const rect = this.container!.getBoundingClientRect();
@@ -274,6 +288,10 @@ export class ShiftHudWidget {
       if (!this.isDragging || !this.container) return;
       const dx = e.clientX - this.dragStartX;
       const dy = e.clientY - this.dragStartY;
+
+      if (Math.abs(dx) > 4 || Math.abs(dy) > 4) {
+        hasMoved = true;
+      }
 
       const maxLeft = Math.max(10, window.innerWidth - this.container.offsetWidth - 10);
       const maxTop = Math.max(10, window.innerHeight - this.container.offsetHeight - 10);
@@ -290,7 +308,14 @@ export class ShiftHudWidget {
     const onMouseUp = () => {
       if (this.isDragging) {
         this.isDragging = false;
-        this.savePosition();
+        if (hasMoved) {
+          this.savePosition();
+        } else if (this.isMinimized) {
+          // Clicked on minimized pill without dragging -> expand!
+          this.isMinimized = false;
+          this.savePosition();
+          this.updateContent();
+        }
       }
     };
 
@@ -318,6 +343,9 @@ export class ShiftHudWidget {
     this.timerInterval = window.setInterval(() => {
       if (!this.shiftState?.shiftStartTime) {
         this.stopLiveTimer();
+        return;
+      }
+      if (this.isMinimized) {
         return;
       }
       const elapsed = Math.max(0, Date.now() - this.shiftState.shiftStartTime);

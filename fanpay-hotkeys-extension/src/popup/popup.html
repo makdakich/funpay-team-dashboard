@@ -31,13 +31,25 @@
     <!-- Shift Cockpit Hero -->
     <section class="shift-cockpit-hero" id="shift-cockpit">
       <div class="cockpit-top">
-        <span class="cockpit-tag" id="shift-badge">СМЕНА НЕ АКТИВНА</span>
+        <div class="cockpit-top-left">
+          <span class="cockpit-tag" id="shift-badge">СМЕНА НЕ АКТИВНА</span>
+          <button id="btn-popup-shift-collapse" class="btn-cockpit-minimize" title="Свернуть (скрыть имя, время и выручку)" style="display: none;">—</button>
+        </div>
         <div class="profile-pill-wrap">
           <label for="profile-select" class="sr-only">Профиль</label>
           <select id="profile-select" class="profile-mini-select" title="Активный игровой профиль">
             <!-- Populated dynamically -->
           </select>
         </div>
+      </div>
+
+      <!-- Collapsed stealth state: No name, no money, no time -->
+      <div id="shift-collapsed-box" class="shift-collapsed-box" style="display: none;" title="Смена активна • Нажмите, чтобы развернуть">
+        <div class="collapsed-left">
+          <span class="status-pulse-dot"></span>
+          <span class="collapsed-label">Смена активна</span>
+        </div>
+        <button id="btn-popup-shift-expand" class="btn-collapsed-expand" title="Развернуть">⛶ Развернуть</button>
       </div>
 
       <!-- Idle state: Select operator -->
@@ -63,7 +75,7 @@
       </div>
 
       <!-- Shift Action Button -->
-      <div class="shift-btn-row">
+      <div class="shift-btn-row" id="shift-btn-row">
         <button id="btn-toggle-shift" class="btn-cockpit-action btn-start">
           <span class="btn-symbol">▶</span>
           <span id="shift-btn-text">Начать смену</span>

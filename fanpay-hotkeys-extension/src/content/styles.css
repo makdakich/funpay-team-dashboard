@@ -245,59 +245,65 @@
   box-sizing: border-box;
 }
 
-/* Minimized Pill Mode */
+/* Minimized Pill Mode (Stealth / Privacy) */
 .fphk-widget-pill {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  background: #090D16;
-  border: 1px solid #10B981;
+  background: #080B11;
+  border: 1px solid #1B2436;
   border-radius: 20px;
-  padding: 6px 12px;
+  padding: 6px 14px;
   color: #F8FAFC;
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4), 0 0 10px rgba(16, 185, 129, 0.2);
-  cursor: grab;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5), 0 0 10px rgba(16, 185, 129, 0.2);
+  cursor: pointer;
   font-size: 12px;
   font-weight: 500;
   white-space: nowrap;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  backdrop-filter: blur(8px);
+}
+
+.fphk-widget-pill:hover {
+  background: #0E131F;
+  border-color: #10B981;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.6), 0 0 14px rgba(16, 185, 129, 0.35);
+  transform: translateY(-1px);
 }
 
 .fphk-widget-pill:active {
   cursor: grabbing;
 }
 
-.fphk-pill-op {
-  color: #E2E8F0;
-  font-weight: 600;
-}
-
-.fphk-pill-timer {
-  font-variant-numeric: tabular-nums;
-  font-family: monospace;
-  color: #10B981;
-  font-weight: 700;
-  letter-spacing: 0.5px;
-}
-
-.fphk-pill-turnover {
+.fphk-pill-label {
   color: #94A3B8;
-  border-left: 1px solid #1E293B;
-  padding-left: 8px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  user-select: none;
+}
+
+.fphk-widget-pill:hover .fphk-pill-label {
+  color: #F8FAFC;
 }
 
 .fphk-pill-btn-toggle {
   background: transparent;
   border: none;
   color: #64748B;
-  font-size: 13px;
+  font-size: 12px;
   cursor: pointer;
   padding: 0 2px;
-  margin-left: 2px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   line-height: 1;
+  transition: color 0.15s ease;
 }
 
 .fphk-pill-btn-toggle:hover {
-  color: #F8FAFC;
+  color: #10B981;
 }
 
 /* Expanded Card Mode */

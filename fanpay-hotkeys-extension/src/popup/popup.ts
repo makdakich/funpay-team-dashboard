@@ -8,6 +8,7 @@ class PopupController {
   private shiftTimerInterval: number | null = null;
   private lastShiftCompleted = false;
   private lastCompletedShift: CompletedShift | null = null;
+  private isShiftCollapsed = false;
 
   public async init() {
     this.bindEvents();
@@ -69,6 +70,31 @@ class PopupController {
     document.getElementById('btn-open-shift-history')?.addEventListener('click', () => {
       chrome.tabs.create({ url: chrome.runtime.getURL('options/options.html#shifts') });
     });
+
+    // Restore popup shift collapse state
+    try {
+      this.isShiftCollapsed = localStorage.getItem('fphk_popup_shift_collapsed') === 'true';
+    } catch {
+      // ignore
+    }
+
+    // Shift collapse & expand toggle buttons
+    document.getElementById('btn-popup-shift-collapse')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.isShiftCollapsed = true;
+      try { localStorage.setItem('fphk_popup_shift_collapsed', 'true'); } catch {}
+      this.renderShiftState();
+    });
+
+    const expandPopupShift = (e: Event) => {
+      e.stopPropagation();
+      this.isShiftCollapsed = false;
+      try { localStorage.setItem('fphk_popup_shift_collapsed', 'false'); } catch {}
+      this.renderShiftState();
+    };
+
+    document.getElementById('shift-collapsed-box')?.addEventListener('click', expandPopupShift);
+    document.getElementById('btn-popup-shift-expand')?.addEventListener('click', expandPopupShift);
   }
 
   private async loadAndRenderState() {
@@ -244,16 +270,31 @@ class PopupController {
     const opInput = document.getElementById('shift-operator-input') as HTMLInputElement | null;
     const btn = document.getElementById('btn-toggle-shift') as HTMLButtonElement | null;
     const btnText = document.getElementById('shift-btn-text');
+    const collapseBtn = document.getElementById('btn-popup-shift-collapse');
+    const collapsedBox = document.getElementById('shift-collapsed-box');
+    const btnRow = document.getElementById('shift-btn-row');
 
     if (!btn) return;
 
     if (this.shiftState.shiftActive && typeof this.shiftState.shiftStartTime === 'number') {
       // Active shift
-      if (cockpit) cockpit.className = 'shift-cockpit-hero active';
+      if (cockpit) cockpit.className = this.isShiftCollapsed ? 'shift-cockpit-hero active collapsed' : 'shift-cockpit-hero active';
       if (badge) badge.textContent = 'СМЕНА В ПРОЦЕССЕ';
       if (idleBox) idleBox.style.display = 'none';
-      if (activeBox) activeBox.style.display = 'block';
       if (summaryEl) summaryEl.style.display = 'none';
+
+      if (this.isShiftCollapsed) {
+        if (collapseBtn) collapseBtn.style.display = 'none';
+        if (activeBox) activeBox.style.display = 'none';
+        if (btnRow) btnRow.style.display = 'none';
+        if (collapsedBox) collapsedBox.style.display = 'flex';
+        return; // Stealth mode: zero name, zero money, zero timer rendered
+      } else {
+        if (collapseBtn) collapseBtn.style.display = 'inline-block';
+        if (activeBox) activeBox.style.display = 'block';
+        if (btnRow) btnRow.style.display = 'flex';
+        if (collapsedBox) collapsedBox.style.display = 'none';
+      }
 
       if (activeOpBadge) {
         activeOpBadge.textContent = `👤 ${this.shiftState.currentOperator || 'Оператор 1'}`;
@@ -266,7 +307,7 @@ class PopupController {
       if (btnText) btnText.textContent = 'Завершить смену';
 
       const updateTimer = () => {
-        if (!this.shiftState.shiftStartTime) return;
+        if (!this.shiftState.shiftStartTime || this.isShiftCollapsed) return;
         const elapsed = Math.max(0, Date.now() - this.shiftState.shiftStartTime);
         if (timerVal) {
           timerVal.textContent = formatDuration(elapsed);
@@ -296,6 +337,9 @@ class PopupController {
       // Inactive shift
       if (cockpit) cockpit.className = 'shift-cockpit-hero';
       if (badge) badge.textContent = 'СМЕНА НЕ АКТИВНА';
+      if (collapseBtn) collapseBtn.style.display = 'none';
+      if (collapsedBox) collapsedBox.style.display = 'none';
+      if (btnRow) btnRow.style.display = 'flex';
       if (idleBox) idleBox.style.display = 'block';
       if (activeBox) activeBox.style.display = 'none';
 
