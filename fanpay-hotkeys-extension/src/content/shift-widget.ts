@@ -8,7 +8,9 @@ export class ShiftHudWidget {
   private shiftState: ShiftState | null = null;
   private extensionState: ExtensionState | null = null;
   private isMinimized = false;
+  private isMouseDown = false;
   private isDragging = false;
+  private justDragged = false;
   private dragStartX = 0;
   private dragStartY = 0;
   private initialLeft = 20;
@@ -213,6 +215,10 @@ export class ShiftHudWidget {
     if (minPill) {
       minPill.addEventListener('click', (e) => {
         e.stopPropagation();
+        if (this.justDragged) {
+          this.justDragged = false;
+          return;
+        }
         if (this.isMinimized) {
           this.isMinimized = false;
           this.savePosition();
@@ -265,56 +271,63 @@ export class ShiftHudWidget {
   private attachDragEvents() {
     if (!this.container) return;
 
-    let hasMoved = false;
-
     const onMouseDown = (e: MouseEvent) => {
-      // Don't drag if clicked on button or input
+      if (e.button !== 0) return;
       const target = e.target as HTMLElement;
+      // Don't drag if clicked on button or input
       if (target.closest('button') || target.closest('input')) return;
 
-      this.isDragging = true;
-      hasMoved = false;
+      this.isMouseDown = true;
+      this.isDragging = false;
+      this.justDragged = false;
       this.dragStartX = e.clientX;
       this.dragStartY = e.clientY;
       const rect = this.container!.getBoundingClientRect();
       this.initialLeft = rect.left;
       this.initialTop = rect.top;
-      e.preventDefault();
+      // Never preventDefault on mousedown to allow natural clicks!
     };
 
     this.container.addEventListener('mousedown', onMouseDown);
 
     const onMouseMove = (e: MouseEvent) => {
-      if (!this.isDragging || !this.container) return;
+      if (!this.isMouseDown || !this.container) return;
       const dx = e.clientX - this.dragStartX;
       const dy = e.clientY - this.dragStartY;
 
-      if (Math.abs(dx) > 4 || Math.abs(dy) > 4) {
-        hasMoved = true;
+      if (!this.isDragging) {
+        if (Math.abs(dx) > 6 || Math.abs(dy) > 6) {
+          this.isDragging = true;
+        }
       }
 
-      const maxLeft = Math.max(10, window.innerWidth - this.container.offsetWidth - 10);
-      const maxTop = Math.max(10, window.innerHeight - this.container.offsetHeight - 10);
+      if (this.isDragging) {
+        e.preventDefault();
+        const maxLeft = Math.max(10, window.innerWidth - this.container.offsetWidth - 10);
+        const maxTop = Math.max(10, window.innerHeight - this.container.offsetHeight - 10);
 
-      const newLeft = Math.max(10, Math.min(maxLeft, this.initialLeft + dx));
-      const newTop = Math.max(10, Math.min(maxTop, this.initialTop + dy));
+        const newLeft = Math.max(10, Math.min(maxLeft, this.initialLeft + dx));
+        const newTop = Math.max(10, Math.min(maxTop, this.initialTop + dy));
 
-      this.container.style.left = `${newLeft}px`;
-      this.container.style.top = `${newTop}px`;
-      this.container.style.right = 'auto';
-      this.container.style.bottom = 'auto';
+        this.container.style.left = `${newLeft}px`;
+        this.container.style.top = `${newTop}px`;
+        this.container.style.right = 'auto';
+        this.container.style.bottom = 'auto';
+      }
     };
 
     const onMouseUp = () => {
-      if (this.isDragging) {
-        this.isDragging = false;
-        if (hasMoved) {
+      if (this.isMouseDown) {
+        this.isMouseDown = false;
+        if (this.isDragging) {
+          this.isDragging = false;
+          this.justDragged = true;
+          setTimeout(() => {
+            this.justDragged = false;
+          }, 150);
           this.savePosition();
-        } else if (this.isMinimized) {
-          // Clicked on minimized pill without dragging -> expand!
-          this.isMinimized = false;
-          this.savePosition();
-          this.updateContent();
+        } else {
+          this.justDragged = false;
         }
       }
     };

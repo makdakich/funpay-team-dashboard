@@ -72,14 +72,24 @@
   font-size: 11px;
 }
 
-.fphk-expand-icon {
+.fphk-expand-icon,
+.fphk-expand-icon-btn {
+  background: transparent;
+  border: none;
   color: #64748B;
-  font-size: 11px;
+  font-size: 12px;
   margin-left: 2px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
   transition: color 0.15s ease;
 }
 
-.fphk-toggle-btn:hover .fphk-expand-icon {
+.fphk-toggle-btn:hover .fphk-expand-icon,
+.fphk-toggle-btn:hover .fphk-expand-icon-btn,
+.fphk-expand-icon-btn:hover {
   color: #10B981;
 }
 

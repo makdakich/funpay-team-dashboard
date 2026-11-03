@@ -11,11 +11,20 @@ export class FunPayPanel {
   private onProfileChangeCallback?: (profileId: string) => void;
 
   // Dragging state
+  private isMouseDown = false;
   private isDragging = false;
+  private justDragged = false;
   private dragStartX = 0;
   private dragStartY = 0;
+  private dragStartLeft = 0;
+  private dragStartTop = 0;
   private initialLeft = 20;
   private initialTop = 140;
+
+  // Global window listener references
+  private windowListenersAttached = false;
+  private onMouseMoveBound = (e: MouseEvent) => this.handleMouseMove(e);
+  private onMouseUpBound = () => this.handleMouseUp();
 
   public init(
     profiles: Profile[],
@@ -35,6 +44,7 @@ export class FunPayPanel {
       if (typeof settings.panelPosition.top === 'number') this.initialTop = settings.panelPosition.top;
     }
 
+    this.ensureWindowListeners();
     this.render();
   }
 
@@ -53,6 +63,11 @@ export class FunPayPanel {
   }
 
   public destroy() {
+    if (this.windowListenersAttached) {
+      window.removeEventListener('mousemove', this.onMouseMoveBound, true);
+      window.removeEventListener('mouseup', this.onMouseUpBound, true);
+      this.windowListenersAttached = false;
+    }
     if (this.container) {
       this.container.remove();
       this.container = null;
@@ -70,13 +85,15 @@ export class FunPayPanel {
       this.container.remove();
     }
 
+    this.ensureWindowListeners();
+
     // Always create floating draggable container attached to body (NEVER insert into chat!)
     this.container = document.createElement('div');
     this.container.id = 'fphk-panel-root';
     this.container.className = `fphk-panel fphk-floating ${this.isCollapsed ? 'fphk-collapsed' : ''}`;
 
     // Apply clamped position with boundary protection
-    const maxLeft = Math.max(10, window.innerWidth - (this.isCollapsed ? 130 : 320) - 10);
+    const maxLeft = Math.max(10, window.innerWidth - (this.isCollapsed ? 140 : 320) - 10);
     const maxTop = Math.max(10, window.innerHeight - (this.isCollapsed ? 50 : 280) - 10);
     const left = Math.max(10, Math.min(maxLeft, this.initialLeft));
     const top = Math.max(10, Math.min(maxTop, this.initialTop));
@@ -90,11 +107,11 @@ export class FunPayPanel {
 
     if (this.isCollapsed) {
       this.container.innerHTML = `
-        <button class="fphk-toggle-btn" id="fphk-panel-toggle-btn" title="Развернуть FanPay Hotkeys • Нажмите или перетащите">
+        <div class="fphk-toggle-btn" id="fphk-panel-toggle-btn" role="button" tabindex="0" title="Развернуть FanPay Hotkeys (нажмите чтобы открыть)">
           <span class="fphk-bolt">⚡</span>
           <span class="fphk-badge-mini">Hotkeys</span>
-          <span class="fphk-expand-icon">⛶</span>
-        </button>
+          <button type="button" class="fphk-expand-icon-btn" id="fphk-btn-panel-expand" title="Развернуть">⛶</button>
+        </div>
       `;
     } else {
       const activeProfileId = this.settings?.selectedProfileId || this.profiles[0]?.id;
@@ -149,10 +166,44 @@ export class FunPayPanel {
     this.attachDragEvents();
   }
 
+  public expand() {
+    this.isCollapsed = false;
+    this.savePosition();
+    this.render();
+  }
+
+  public collapse() {
+    this.isCollapsed = true;
+    this.savePosition();
+    this.render();
+  }
+
   private bindEvents() {
     if (!this.container) return;
 
-    if (!this.isCollapsed) {
+    if (this.isCollapsed) {
+      // Direct click listener on toggle pill
+      const togglePill = this.container.querySelector<HTMLElement>('#fphk-panel-toggle-btn');
+      if (togglePill) {
+        togglePill.addEventListener('click', (e) => {
+          e.stopPropagation();
+          if (this.justDragged) {
+            this.justDragged = false;
+            return;
+          }
+          this.expand();
+        });
+      }
+
+      // Direct click listener on ⛶ expand icon button
+      const expandBtn = this.container.querySelector<HTMLElement>('#fphk-btn-panel-expand');
+      if (expandBtn) {
+        expandBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          this.expand();
+        });
+      }
+    } else {
       // Profile selector
       const selectEl = this.container.querySelector<HTMLSelectElement>('.fphk-profile-select');
       selectEl?.addEventListener('change', (e) => {
@@ -162,15 +213,13 @@ export class FunPayPanel {
         }
       });
 
-      // Collapse button
+      // Collapse button (—)
       this.container.querySelector('.fphk-collapse-btn')?.addEventListener('click', (e) => {
         e.stopPropagation();
-        this.isCollapsed = true;
-        this.savePosition();
-        this.render();
+        this.collapse();
       });
 
-      // Settings button
+      // Settings button (⚙️)
       this.container.querySelector('.fphk-settings-btn')?.addEventListener('click', (e) => {
         e.stopPropagation();
         chrome.runtime.sendMessage({ type: 'OPEN_OPTIONS' });
@@ -191,73 +240,89 @@ export class FunPayPanel {
     }
   }
 
+  private ensureWindowListeners() {
+    if (!this.windowListenersAttached) {
+      window.addEventListener('mousemove', this.onMouseMoveBound, true);
+      window.addEventListener('mouseup', this.onMouseUpBound, true);
+      this.windowListenersAttached = true;
+    }
+  }
+
   private attachDragEvents() {
     if (!this.container) return;
 
-    let hasMoved = false;
-
     const onMouseDown = (e: MouseEvent) => {
+      if (e.button !== 0) return; // Only primary mouse button
+
       const target = e.target as HTMLElement;
 
       if (!this.isCollapsed) {
         const header = target.closest('#fphk-panel-drag-handle');
         if (!header) return;
-        // Don't drag if clicking buttons inside header
-        if (target.closest('button')) return;
+        // Don't drag if clicking buttons or select inside header
+        if (target.closest('button') || target.closest('select') || target.closest('input')) return;
       } else {
-        // In collapsed mode: whole button is draggable
-        if (!target.closest('#fphk-panel-toggle-btn')) return;
+        // In collapsed mode: clicking anywhere on the pill or wrapper allows dragging
+        const pill = target.closest('#fphk-panel-toggle-btn') || target.closest('#fphk-panel-root');
+        if (!pill) return;
       }
 
-      this.isDragging = true;
-      hasMoved = false;
+      this.isMouseDown = true;
+      this.isDragging = false;
+      this.justDragged = false;
       this.dragStartX = e.clientX;
       this.dragStartY = e.clientY;
       const rect = this.container!.getBoundingClientRect();
-      this.initialLeft = rect.left;
-      this.initialTop = rect.top;
-      e.preventDefault();
+      this.dragStartLeft = rect.left;
+      this.dragStartTop = rect.top;
+      // CRITICAL: NEVER call e.preventDefault() here! Allow native click events to fire freely!
     };
 
     this.container.addEventListener('mousedown', onMouseDown);
+  }
 
-    const onMouseMove = (e: MouseEvent) => {
-      if (!this.isDragging || !this.container) return;
-      const dx = e.clientX - this.dragStartX;
-      const dy = e.clientY - this.dragStartY;
+  private handleMouseMove(e: MouseEvent) {
+    if (!this.isMouseDown || !this.container) return;
 
-      if (Math.abs(dx) > 4 || Math.abs(dy) > 4) {
-        hasMoved = true;
+    const dx = e.clientX - this.dragStartX;
+    const dy = e.clientY - this.dragStartY;
+
+    if (!this.isDragging) {
+      if (Math.abs(dx) > 6 || Math.abs(dy) > 6) {
+        this.isDragging = true;
       }
+    }
+
+    if (this.isDragging) {
+      e.preventDefault(); // Now we are truly dragging, prevent text selection
 
       const maxLeft = Math.max(10, window.innerWidth - this.container.offsetWidth - 10);
       const maxTop = Math.max(10, window.innerHeight - this.container.offsetHeight - 10);
 
-      const newLeft = Math.max(10, Math.min(maxLeft, this.initialLeft + dx));
-      const newTop = Math.max(10, Math.min(maxTop, this.initialTop + dy));
+      const newLeft = Math.max(10, Math.min(maxLeft, this.dragStartLeft + dx));
+      const newTop = Math.max(10, Math.min(maxTop, this.dragStartTop + dy));
 
       this.container.style.left = `${newLeft}px`;
       this.container.style.top = `${newTop}px`;
       this.container.style.right = 'auto';
       this.container.style.bottom = 'auto';
-    };
+    }
+  }
 
-    const onMouseUp = () => {
-      if (this.isDragging) {
-        this.isDragging = false;
-        if (hasMoved) {
-          this.savePosition();
-        } else if (this.isCollapsed) {
-          // Clicked on collapsed toggle pill without dragging -> expand!
-          this.isCollapsed = false;
-          this.savePosition();
-          this.render();
-        }
-      }
-    };
+  private handleMouseUp() {
+    if (!this.isMouseDown) return;
+    this.isMouseDown = false;
 
-    window.addEventListener('mousemove', onMouseMove);
-    window.addEventListener('mouseup', onMouseUp);
+    if (this.isDragging) {
+      this.isDragging = false;
+      this.justDragged = true;
+      setTimeout(() => {
+        this.justDragged = false;
+      }, 150);
+      this.savePosition();
+    } else {
+      this.justDragged = false;
+    }
   }
 
   private savePosition() {
