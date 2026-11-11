@@ -720,6 +720,38 @@
             <span id="key-status-text">Проверка токена...</span>
           </div>
         </div>
+
+        <!-- ============ TEAM CLOUD (Supabase v2.4) ============ -->
+        <div class="obsidian-card settings-card" style="margin-top: 14px;">
+          <div class="setting-field">
+            <label class="field-label" for="cloud-email-input">Вход оператора в облако команды</label>
+            <div class="input-with-action">
+              <input type="email" id="cloud-email-input" class="obsidian-input" placeholder="operator@example.com" autocomplete="off">
+              <input type="password" id="cloud-password-input" class="obsidian-input" placeholder="Пароль" autocomplete="off">
+              <button id="btn-cloud-signin" class="btn btn-primary-accent">Войти</button>
+              <button id="btn-cloud-signout" class="btn btn-secondary-subtle">Выйти</button>
+            </div>
+            <p class="field-hint" id="cloud-auth-status">Проверка состояния входа...</p>
+          </div>
+
+          <div class="setting-field">
+            <label class="field-label" for="cloud-seller-input">ID магазина продавца (seller_account_id)</label>
+            <div class="input-with-action">
+              <input type="text" id="cloud-seller-input" class="obsidian-input" placeholder="1084291">
+              <button id="btn-cloud-save-seller" class="btn btn-secondary-subtle">Сохранить</button>
+              <button id="btn-cloud-load-shops" class="btn btn-secondary-subtle">Магазины из облака</button>
+            </div>
+            <p class="field-hint">Смены и заказы принимаются только на магазинах, добавленных владельцем в таблицу team_seller_accounts.</p>
+          </div>
+
+          <div class="setting-field">
+            <label class="field-label">Синхронизация архива заказов</label>
+            <div class="input-with-action">
+              <button id="btn-cloud-push-orders" class="btn btn-primary-accent">Отправить заказы в облако</button>
+            </div>
+            <p class="field-hint" id="cloud-sync-result">Локальный архив заказов отправляется пакетами по 50 через RPC sync_orders_batch.</p>
+          </div>
+        </div>
       </section>
 
       <!-- ================= 9. GENERAL SETTINGS ================= -->

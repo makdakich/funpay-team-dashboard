@@ -47,6 +47,13 @@ export interface AppSettings {
     left?: number;
     minimized?: boolean;
   };
+  supabaseUrl?: string; // Supabase project REST URL
+  supabaseKey?: string; // Supabase public anon key
+  cloudSyncEnabled?: boolean; // Real-time team cloud reporting
+  sellerAccountId?: string; // FunPay seller account ID registered in team_seller_accounts (e.g. '1084291')
+  soundEnabled?: boolean; // Audio cue when a template is inserted
+  notificationsEnabled?: boolean; // Chrome push notifications for shift reminders
+  cloudAutoPushOrders?: boolean; // Push locally cached orders to the team backend right after each FunPay sync
 }
 
 export type OrderStatus = 'paid' | 'closed' | 'refunded' | 'unknown';
@@ -154,6 +161,65 @@ export interface ExtensionState {
   cache: SyncCache;
 }
 
+/**
+ * Supabase Auth session of the operator (v2.4 team backend).
+ * Every write RPC requires a valid access token, because the database derives
+ * the caller identity strictly from auth.uid().
+ */
+export interface CloudAuthSession {
+  accessToken: string;
+  refreshToken: string;
+  expiresAt: number; // Unix timestamp in ms
+  userId: string; // auth.users.id / public.profiles.user_id
+  email?: string;
+  savedAt: number; // Unix timestamp in ms
+}
+
+/** Sanitized auth state safe to hand to the UI (no tokens). */
+export interface CloudAuthState {
+  signedIn: boolean;
+  userId?: string;
+  email?: string;
+  expiresAt?: number;
+  expired?: boolean;
+}
+
+/** Authorized FunPay shop registered by the owner in team_seller_accounts. */
+export interface CloudShop {
+  sellerAccountId: string;
+  accountName: string;
+}
+
+/** Live team presence row from public.operator_status joined with profiles. */
+export interface TeamMemberStatus {
+  userId: string;
+  displayName: string;
+  role: 'owner' | 'operator' | string;
+  status: 'offline' | 'online' | 'on_shift' | 'break';
+  activeShiftId: string | null;
+  sellerAccountId: string | null;
+  appVersion: string | null;
+  lastHeartbeatAt: string | null;
+}
+
+/** Aggregated response from sync_orders_batch across all chunks. */
+export interface OrderSyncReport {
+  sellerAccountId: string;
+  totalOrders: number;
+  sentOrders: number;
+  inserted: number;
+  updated: number;
+  financialDiscrepancies: number;
+  createdTimeDiscrepancies: number;
+  ignoredStatusDowngrades: number;
+  rejected: number; // rows the RPC answered with action = 'error'
+  skippedLocally: number; // rows the adapter dropped before sending
+  skippedDetails: { orderId: string; reason: string }[];
+  errors: string[];
+  chunks: number;
+  finishedAt: number; // Unix timestamp in ms
+}
+
 export interface BackupData {
   version: string;
   exportDate: string;
@@ -187,6 +253,7 @@ export interface ShiftState {
   shiftActive: boolean;
   shiftStartTime: number | null; // Unix timestamp in ms
   currentOperator?: string;      // Active worker/operator name
+  currentShiftId?: string;       // Unique UUID/id of current shift in cloud
   note?: string;
 }
 
@@ -226,7 +293,14 @@ export type ExtensionMessage =
   | { type: 'GET_SHIFT_HISTORY' }
   | { type: 'SAVE_SHIFT'; payload: { shift: CompletedShift } }
   | { type: 'DELETE_SHIFT'; payload: { shiftId: string } }
-  | { type: 'RECALCULATE_SHIFTS_EARNINGS' };
+  | { type: 'RECALCULATE_SHIFTS_EARNINGS' }
+  | { type: 'TEST_SUPABASE_CONNECTION'; payload?: { url?: string; key?: string } }
+  | { type: 'FETCH_TEAM_STATUS' }
+  | { type: 'GET_CLOUD_AUTH_STATE' }
+  | { type: 'SIGN_IN_CLOUD'; payload: { email: string; password: string } }
+  | { type: 'SIGN_OUT_CLOUD' }
+  | { type: 'FETCH_CLOUD_SHOPS' }
+  | { type: 'SYNC_ORDERS_TO_CLOUD'; payload?: { sellerAccountId?: string } };
 
 export interface FunPayContext {
   onFunPay: boolean;

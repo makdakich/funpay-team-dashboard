@@ -191,5 +191,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
     top: 70,
     left: 20,
     minimized: false
-  }
+  },
+  supabaseUrl: 'https://zlpbywengymnvrpbcxvh.supabase.co',
+  supabaseKey: 'sb_publishable_bNZgLYmEol6FzzqvfXOHtA_d-mzoaKR',
+  cloudSyncEnabled: true
 };

@@ -1,8 +1,11 @@
 import {
   AppSettings,
   BackupData,
+  CloudAuthState,
+  CloudShop,
   CompletedShift,
   ExtensionState,
+  OrderSyncReport,
   PeriodMultiCurrencyStats,
   Profile,
   Template
@@ -34,6 +37,7 @@ import { FunPayClientsAdapter } from '../api/adapters/clients';
 class OptionsController {
   private state: ExtensionState | null = null;
   private currentTab = 'dashboard';
+  private cloudAuth: CloudAuthState | null = null;
 
   // Chart analytics state
   private chartMetric: MetricType = 'turnover';
@@ -97,6 +101,11 @@ class OptionsController {
     if (res?.state) {
       this.state = res.state;
     }
+
+    // Team cloud session (schema v2.4): kept separate from local state
+    const authRes = await chrome.runtime.sendMessage({ type: 'GET_CLOUD_AUTH_STATE' });
+    this.cloudAuth = authRes?.auth || null;
+
     const shiftsRes = await chrome.runtime.sendMessage({ type: 'GET_SHIFT_HISTORY' });
     if (shiftsRes?.history) {
       this.shifts = shiftsRes.history;
@@ -1890,6 +1899,89 @@ class OptionsController {
       await this.refreshState();
     });
 
+    // ------------------------------------------------------------------
+    // Team cloud (Supabase v2.4)
+    // ------------------------------------------------------------------
+    document.getElementById('btn-cloud-signin')?.addEventListener('click', async () => {
+      const btn = document.getElementById('btn-cloud-signin') as HTMLButtonElement;
+      const email = (document.getElementById('cloud-email-input') as HTMLInputElement)?.value?.trim() || '';
+      const password = (document.getElementById('cloud-password-input') as HTMLInputElement)?.value || '';
+
+      btn.disabled = true;
+      btn.textContent = 'Вход...';
+      try {
+        const res = await chrome.runtime.sendMessage({
+          type: 'SIGN_IN_CLOUD',
+          payload: { email, password }
+        });
+        if (!res?.success) {
+          alert('Не удалось войти: ' + (res?.error || 'неизвестная ошибка'));
+        } else {
+          const passwordInput = document.getElementById('cloud-password-input') as HTMLInputElement;
+          if (passwordInput) passwordInput.value = '';
+        }
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Войти';
+        await this.refreshState();
+      }
+    });
+
+    document.getElementById('btn-cloud-signout')?.addEventListener('click', async () => {
+      await chrome.runtime.sendMessage({ type: 'SIGN_OUT_CLOUD' });
+      await this.refreshState();
+    });
+
+    document.getElementById('btn-cloud-save-seller')?.addEventListener('click', async () => {
+      const value = (document.getElementById('cloud-seller-input') as HTMLInputElement)?.value?.trim() || '';
+      await chrome.runtime.sendMessage({
+        type: 'UPDATE_SETTINGS',
+        payload: { sellerAccountId: value }
+      });
+      await this.refreshState();
+    });
+
+    document.getElementById('btn-cloud-load-shops')?.addEventListener('click', async () => {
+      const hint = document.getElementById('cloud-sync-result');
+      const res = await chrome.runtime.sendMessage({ type: 'FETCH_CLOUD_SHOPS' });
+      const shops: CloudShop[] = res?.shops || [];
+
+      if (!shops.length) {
+        if (hint) hint.textContent = 'В облаке не найден ни один активный магазин команды (нужен вход оператора).';
+        return;
+      }
+
+      if (hint) {
+        hint.textContent = 'Магазины команды: ' + shops.map(s => s.accountName + ' (' + s.sellerAccountId + ')').join(', ');
+      }
+
+      const input = document.getElementById('cloud-seller-input') as HTMLInputElement;
+      if (input && !input.value.trim() && shops.length === 1) {
+        input.value = shops[0].sellerAccountId;
+      }
+    });
+
+    document.getElementById('btn-cloud-push-orders')?.addEventListener('click', async () => {
+      const btn = document.getElementById('btn-cloud-push-orders') as HTMLButtonElement;
+      const hint = document.getElementById('cloud-sync-result');
+
+      btn.disabled = true;
+      btn.textContent = 'Отправка...';
+      try {
+        const res = await chrome.runtime.sendMessage({ type: 'SYNC_ORDERS_TO_CLOUD' });
+        const summary = this.formatSyncReport(res?.report as OrderSyncReport | undefined);
+
+        if (hint) {
+          hint.textContent = res?.success
+            ? '✅ ' + summary
+            : '⚠️ ' + (res?.error || 'Ошибка синхронизации') + (res?.report ? ' | ' + summary : '');
+        }
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Отправить заказы в облако';
+      }
+    });
+
     document.getElementById('btn-test-key')?.addEventListener('click', async () => {
       const btn = document.getElementById('btn-test-key') as HTMLButtonElement;
       btn.disabled = true;
@@ -1928,6 +2020,50 @@ class OptionsController {
         text.textContent = 'Сессия FunPay не активна или токен не указан';
       }
     }
+
+    // Team cloud session and seller account (schema v2.4)
+    const sellerInput = document.getElementById('cloud-seller-input') as HTMLInputElement;
+    if (sellerInput && this.state.settings.sellerAccountId) {
+      sellerInput.value = this.state.settings.sellerAccountId;
+    }
+
+    const cloudStatus = document.getElementById('cloud-auth-status');
+    if (cloudStatus) {
+      if (this.cloudAuth?.signedIn) {
+        const identity = this.cloudAuth.email || this.cloudAuth.userId || 'оператор';
+        cloudStatus.textContent = this.cloudAuth.expired
+          ? '✅ Вход выполнен: ' + identity + ' (токен обновится при следующем запросе)'
+          : '✅ Вход выполнен: ' + identity;
+      } else {
+        cloudStatus.textContent = 'Вход не выполнен: политики RLS вернут пустой результат для команды.';
+      }
+    }
+  }
+
+  private formatSyncReport(report?: OrderSyncReport): string {
+    if (!report) return 'Отчёт недоступен';
+
+    const parts = [
+      'отправлено ' + report.sentOrders + ' из ' + report.totalOrders,
+      'новых ' + report.inserted,
+      'обновлено ' + report.updated,
+      'расхождений ' + (report.financialDiscrepancies + report.createdTimeDiscrepancies),
+      'отклонено ' + report.rejected,
+      'пропущено локально ' + report.skippedLocally,
+      'пакетов ' + report.chunks
+    ];
+
+    let summary = parts.join(' • ');
+    if (report.errors.length) {
+      summary += ' | Ошибки: ' + report.errors.slice(0, 3).join('; ');
+    }
+    if (report.skippedDetails.length) {
+      const sample = report.skippedDetails.slice(0, 2)
+        .map(item => item.orderId + ': ' + item.reason)
+        .join('; ');
+      summary += ' | Пропуски: ' + sample;
+    }
+    return summary;
   }
 
   // ==========================================================================

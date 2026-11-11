@@ -251,9 +251,14 @@ export async function startShift(operatorName?: string, note?: string): Promise<
 }
 
 /**
- * End current shift, append to shift history, and reset active shift state in chrome.storage.local
+ * End current shift, append to shift history, and reset active shift state in chrome.storage.local.
+ * An explicit `id` lets the caller reuse the cloud shift UUID, keeping local history
+ * and the Supabase row aligned under one identifier.
  */
-export async function stopShift(note?: string): Promise<{ completedShift: CompletedShift | null; shiftState: ShiftState }> {
+export async function stopShift(
+  note?: string,
+  options?: { id?: string }
+): Promise<{ completedShift: CompletedShift | null; shiftState: ShiftState }> {
   const current = await loadShiftState();
   if (!current.shiftActive || !current.shiftStartTime) {
     const resetState: ShiftState = { shiftActive: false, shiftStartTime: null, currentOperator: 'Оператор 1' };
@@ -269,7 +274,9 @@ export async function stopShift(note?: string): Promise<{ completedShift: Comple
   const earnings = calculateShiftEarnings(current.shiftStartTime, endTime, orders, sellerSharePercent);
 
   const completedShift: CompletedShift = {
-    id: `shift_${current.shiftStartTime}_${Math.random().toString(36).slice(2, 8)}`,
+    id: options?.id && /^[0-9a-f-]{36}$/i.test(options.id)
+      ? options.id
+      : `shift_${current.shiftStartTime}_${Math.random().toString(36).slice(2, 8)}`,
     operatorName: current.currentOperator || state.settings.lastOperator || 'Оператор 1',
     startTime: current.shiftStartTime,
     endTime,
