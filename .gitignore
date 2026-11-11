@@ -48,4 +48,6 @@ FULL_EXTENSION_CODEBASE.md
 *.bat
 scripts/deploy_remote.py
 scripts/inspect_sqlite.py
+Creeper_Piggy_Bank/
+Nissan_AD_Y11*
 
