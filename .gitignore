@@ -5,6 +5,7 @@ __pycache__/
 *$py.class
 .pytest_cache/
 build/
+dist/
 *.spec.bak
 tmp_pyinstaller_dist/
 
@@ -41,4 +42,10 @@ temp_audit/
 backups/
 test_geom.db
 test_render.db
+scratch/
+FULL_EXTENSION_CODEBASE.md
+ПРОМПТ_*.md
+*.bat
+scripts/deploy_remote.py
+scripts/inspect_sqlite.py
 
