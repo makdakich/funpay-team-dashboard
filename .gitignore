@@ -6,11 +6,29 @@ __pycache__/
 .pytest_cache/
 build/
 *.spec.bak
+tmp_pyinstaller_dist/
 
-# Node
+# Node & Web
 node_modules/
 fanpay-hotkeys-extension/node_modules/
 fanpay-hotkeys-extension/dist/
+web/node_modules/
+web/dist/
+web/.npm-cache/
+
+# Environment and Secrets
+.env
+.env.local
+.env.*
+!.env.example
+web/.env
+web/.env.*
+!web/.env.example
+*.pem
+*.key
+
+# Sensitive test and deploy scripts with credentials
+scripts/test_e2e_live.py
 
 # OS / IDE
 .DS_Store
@@ -21,3 +39,6 @@ Thumbs.db
 # Local audit & backups
 temp_audit/
 backups/
+test_geom.db
+test_render.db
+
