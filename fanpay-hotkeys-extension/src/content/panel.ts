@@ -142,6 +142,7 @@ export class FunPayPanel {
             <span class="fphk-panel-title-text">FunPay Hotkeys</span>
           </div>
           <div class="fphk-header-actions">
+            <button class="fphk-icon-btn fphk-web-btn" title="Открыть командный дашборд на сайте">🌐</button>
             <button class="fphk-icon-btn fphk-settings-btn" title="Открыть настройки">⚙️</button>
             <button class="fphk-icon-btn fphk-collapse-btn" title="Свернуть в мини-кнопку">—</button>
           </div>
@@ -217,6 +218,12 @@ export class FunPayPanel {
       this.container.querySelector('.fphk-collapse-btn')?.addEventListener('click', (e) => {
         e.stopPropagation();
         this.collapse();
+      });
+
+      // Web Dashboard button (🌐)
+      this.container.querySelector('.fphk-web-btn')?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        window.open('https://makdakich.github.io/funpay-team-dashboard/', '_blank');
       });
 
       // Settings button (⚙️)

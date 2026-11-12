@@ -154,6 +154,7 @@ export class ShiftHudWidget {
                 <span class="fphk-widget-title">Смена активна</span>
               </div>
               <div class="fphk-header-actions">
+                <button class="fphk-btn-icon fphk-btn-web" id="fphk-btn-web-dash" title="Открыть командный дашборд на сайте">🌐</button>
                 <button class="fphk-btn-icon" id="fphk-btn-widget-toggle" title="Свернуть (скрыть имя, время и выручку)">—</button>
               </div>
             </div>
@@ -198,6 +199,15 @@ export class ShiftHudWidget {
 
   private bindWidgetEvents() {
     if (!this.container) return;
+
+    // Open Web Dashboard
+    const webDashBtn = this.container.querySelector('#fphk-btn-web-dash');
+    if (webDashBtn) {
+      webDashBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        window.open('https://makdakich.github.io/funpay-team-dashboard/', '_blank');
+      });
+    }
 
     // Toggle minimize
     const toggleBtn = this.container.querySelector('#fphk-btn-widget-toggle');

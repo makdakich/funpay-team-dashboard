@@ -274,6 +274,29 @@ body.theme-obsidian {
   border-color: var(--border-highlight);
 }
 
+.topbar-link-btn.topbar-link-primary {
+  background: rgba(59, 130, 246, 0.15);
+  border-color: rgba(59, 130, 246, 0.4);
+  color: #93C5FD;
+  font-weight: 600;
+}
+
+.topbar-link-btn.topbar-link-primary:hover {
+  background: rgba(59, 130, 246, 0.25);
+  border-color: #60A5FA;
+  color: #FFFFFF;
+}
+
+a.nav-item-external {
+  text-decoration: none;
+  color: #93C5FD;
+}
+
+a.nav-item-external:hover {
+  color: #FFFFFF;
+  background: var(--bg-surface-elevated);
+}
+
 /* ==========================================================================
    Layout Container
    ========================================================================== */

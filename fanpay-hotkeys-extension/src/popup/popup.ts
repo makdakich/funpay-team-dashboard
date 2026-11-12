@@ -54,10 +54,16 @@ class PopupController {
       chrome.runtime.openOptionsPage();
     });
 
-    // Stats button
+    // Stats / Local options button
     const btnStats = document.getElementById('btn-stats');
     btnStats?.addEventListener('click', () => {
       chrome.tabs.create({ url: chrome.runtime.getURL('options/options.html#dashboard') });
+    });
+
+    // Web Dashboard (Site) button
+    const btnWebDashboard = document.getElementById('btn-web-dashboard');
+    btnWebDashboard?.addEventListener('click', () => {
+      chrome.tabs.create({ url: 'https://makdakich.github.io/funpay-team-dashboard/' });
     });
 
     // Shift toggle button
