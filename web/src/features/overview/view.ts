@@ -105,13 +105,12 @@ export function buildOverview(data: OverviewData): HTMLElement {
   cardHeader.append(metaBox, chipsWrap);
 
   const balanceVal = element('div', 'hero-balance-val tabular-nums', ['0 ₽']);
-  const turnoverSub = element('div', 'hero-turnover-meta', ['Подтверждённый оборот (closed): 0 ₽']);
 
   // Share slider & earnings row
   const shareControl = element('div', 'hero-share-control');
   const shareLabelRow = element('div', 'share-slider-label');
   const shareLabel = element('span', '', [`Моя доля от оборота: ${sharePercent}%`]);
-  const cleanShareVal = element('span', 'share-earned-badge tabular-nums', ['Чистая доля: 0 ₽']);
+  const cleanShareVal = element('span', 'share-earned-badge tabular-nums', ['Чистая доля сегодня: 0 ₽']);
   shareLabelRow.append(shareLabel, cleanShareVal);
 
   const shareSliderRow = element('div', 'share-slider-row');
@@ -141,7 +140,7 @@ export function buildOverview(data: OverviewData): HTMLElement {
   shareSliderRow.append(slider, numInput);
   shareControl.append(shareLabelRow, shareSliderRow);
 
-  balanceCard.append(cardHeader, balanceVal, turnoverSub, shareControl);
+  balanceCard.append(cardHeader, balanceVal, shareControl);
 
   // 2.2 Right: 3 Delta KPI Cards Column
   const metricsCol = element('div', 'hero-metrics-column');
@@ -198,8 +197,7 @@ export function buildOverview(data: OverviewData): HTMLElement {
       : (activeCurrency === 'RUB' ? (data.totalBalance ?? 27242) : 0);
 
     balanceVal.textContent = formatCurrency(currentFunPayBalance, activeCurrency);
-    turnoverSub.textContent = `Подтверждённый оборот (closed): ${formatCurrency(totalTurnover, activeCurrency)}`;
-    cleanShareVal.textContent = `Чистая доля: ${formatCurrency(cleanShareTotal, activeCurrency)}`;
+    cleanShareVal.textContent = `Чистая доля сегодня: ${formatCurrency(k.todayCleanShare, activeCurrency)}`;
 
     kpiTodayVal.textContent = formatCurrency(k.todayTurnover, activeCurrency);
     kpiTodaySub.textContent = `${k.todayOrdersCount} закрытых заказов (доля: ${formatCurrency(k.todayCleanShare, activeCurrency)})`;

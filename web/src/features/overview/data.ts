@@ -18,7 +18,7 @@ export async function loadOverview(): Promise<OverviewData> {
       .select('id,user_id,seller_account_id,start_time,end_time,duration_seconds,status')
       .order('start_time', { ascending: false })
       .limit(6),
-    supabase.from('orders').select('order_id', { count: 'exact', head: true }),
+    supabase.from('orders').select('order_id', { count: 'exact', head: true }).eq('seller_account_id', '4473774'),
     supabase
       .from('team_seller_accounts')
       .select('seller_account_id,account_name,total_balance,balances,balance_currency,balance_updated_at')
@@ -51,7 +51,8 @@ export async function loadOverview(): Promise<OverviewData> {
     displayName: profileNames.get(shift.user_id) ?? 'Участник команды'
   }));
 
-  const { orders, sellerAccountId } = await loadAllOrders();
+  const targetSellerId = targetAccount?.seller_account_id || '4473774';
+  const { orders, sellerAccountId } = await loadAllOrders(targetSellerId);
   const closedRows = orders
     .filter(o => o.status === 'closed')
     .map(o => ({ amount: String(o.amount), currency: o.currency }));
@@ -67,7 +68,7 @@ export async function loadOverview(): Promise<OverviewData> {
     operatorShareByCurrency: financials.operatorShareByCurrency ?? EMPTY_CURRENCIES,
     recentActivity,
     orders,
-    sellerAccountId: sellerAccountId || targetAccount?.seller_account_id || '4473774',
+    sellerAccountId: sellerAccountId || targetSellerId,
     storeName,
     balancesByCurrency,
     totalBalance,
@@ -75,16 +76,16 @@ export async function loadOverview(): Promise<OverviewData> {
   };
 }
 
-async function loadAllOrders(): Promise<{ orders: OverviewOrderPoint[]; sellerAccountId?: string }> {
+async function loadAllOrders(targetSellerAccountId: string = '4473774'): Promise<{ orders: OverviewOrderPoint[]; sellerAccountId?: string }> {
   const orders: OverviewOrderPoint[] = [];
   let offset = 0;
-  let sellerAccountId: string | undefined;
+  let sellerAccountId: string | undefined = targetSellerAccountId;
 
   while (true) {
     const { data, error } = await supabase
       .from('orders')
       .select('seller_account_id,order_id,amount,currency,status,funpay_created_at')
-      .order('seller_account_id', { ascending: true })
+      .eq('seller_account_id', targetSellerAccountId)
       .order('order_id', { ascending: true })
       .range(offset, offset + PAGE_SIZE - 1);
 

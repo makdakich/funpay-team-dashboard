@@ -2,6 +2,7 @@ import { AuthService, type AuthState } from '@/lib/auth';
 import type { Profile } from '@/types/database';
 import { getErrorMessage } from '@/lib/errors';
 import { createButton, createNotice, element, icon, type IconName } from '@/components/ui';
+import { supabase } from '@/lib/supabase';
 import { renderLogin } from '@/features/auth/login-view';
 import { renderAcceptInvite } from '@/features/auth/accept-invite-view';
 import { renderOverview } from '@/features/overview/view';
@@ -32,12 +33,18 @@ export class DashboardApp {
     this.root = root;
   }
 
+  private profileRenameListener = (e: Event) => {
+    const custom = e as CustomEvent<{ name?: string }>;
+    this.openProfileRenameModal(custom.detail?.name || (this.authState.status === 'active' ? this.authState.profile.display_name : ''));
+  };
+
   async start(): Promise<void> {
     this.unsubscribeAuth = this.auth.subscribe(state => {
       this.authState = state;
       this.renderAuthState();
     });
     window.addEventListener('hashchange', this.routeHandler);
+    window.addEventListener('fp-edit-profile-name', this.profileRenameListener);
     try {
       await this.auth.initialize();
     } catch (error) {
@@ -128,7 +135,13 @@ export class DashboardApp {
     const sidebarFooter = element('div', 'sidebar-footer');
     const avatar = element('span', 'profile-avatar', [initials(displayName)]);
     const roleLabel = profile?.is_creator ? 'Создатель команды' : (role === 'owner' ? 'Руководитель' : 'Оператор');
-    const userMeta = element('span', 'profile-meta', [element('strong', '', [displayName]), element('small', '', [roleLabel])]);
+    const userMeta = element('span', 'profile-meta profile-clickable', [
+      element('strong', '', [displayName]),
+      element('small', '', [roleLabel, ' · ', element('span', 'profile-rename-hint', ['изменить ✏️'])])
+    ]);
+    userMeta.title = 'Нажмите, чтобы изменить отображаемое имя';
+    userMeta.style.cursor = 'pointer';
+    userMeta.addEventListener('click', () => this.openProfileRenameModal(displayName));
     const logout = createButton('', 'icon-button logout-button', 'logout');
     logout.title = 'Выйти из аккаунта';
     logout.setAttribute('aria-label', 'Выйти из аккаунта');
@@ -150,7 +163,10 @@ export class DashboardApp {
     this.mobileButton.addEventListener('click', () => this.openMobileSidebar());
     topLeft.append(this.mobileButton, element('div', 'breadcrumbs', [element('span', '', ['Workspace']), element('span', 'breadcrumb-separator', ['/']), element('strong', 'breadcrumb-current', [getRouteTitle(parseRoute(window.location.hash).route)])]));
     const topRight = element('div', 'topbar-right');
-    topRight.append(element('span', 'environment-chip', [element('span', 'environment-dot'), 'Защищённое соединение']));
+    const profileBtn = createButton(`👤 ${displayName} ✏️`, 'button button-ghost button-xs profile-topbar-btn');
+    profileBtn.title = 'Изменить отображаемое имя';
+    profileBtn.addEventListener('click', () => this.openProfileRenameModal(displayName));
+    topRight.append(profileBtn, element('span', 'environment-chip', [element('span', 'environment-dot'), 'Защищённое соединение']));
     topbar.append(topLeft, topRight);
 
     const main = element('main', 'main-content');
@@ -290,6 +306,89 @@ export class DashboardApp {
     this.root.replaceChildren(page);
   }
 
+  public openProfileRenameModal(currentName: string): void {
+    const existing = document.getElementById('modal-profile-rename');
+    if (existing) existing.remove();
+
+    const overlay = element('div', 'modal-overlay');
+    overlay.id = 'modal-profile-rename';
+
+    const card = element('div', 'modal-card modal-profile-card');
+    card.style.maxWidth = '420px';
+
+    const header = element('div', 'modal-header');
+    header.append(
+      element('h3', 'modal-title', ['Изменить имя профиля']),
+      element('p', 'modal-subtitle', ['Ваше отображаемое имя в команде, сменах и отчётах'])
+    );
+
+    const body = element('div', 'modal-body');
+    const inputGroup = element('div', 'form-group');
+    const label = element('label', 'form-label', ['Отображаемое имя:']);
+    const input = element('input', 'input') as HTMLInputElement;
+    input.type = 'text';
+    input.value = currentName || (this.authState.status === 'active' ? this.authState.profile.display_name : '');
+    input.placeholder = 'Например: Алекс';
+    input.maxLength = 32;
+    input.style.width = '100%';
+    input.style.marginTop = '6px';
+    inputGroup.append(label, input);
+
+    const errorNotice = element('div', 'notice notice-danger');
+    errorNotice.style.display = 'none';
+    errorNotice.style.marginTop = '10px';
+
+    body.append(inputGroup, errorNotice);
+
+    const footer = element('div', 'modal-actions');
+    const cancelBtn = createButton('Отмена', 'button button-secondary');
+    const saveBtn = createButton('Сохранить', 'button button-primary');
+
+    cancelBtn.addEventListener('click', () => overlay.remove());
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) overlay.remove();
+    });
+
+    saveBtn.addEventListener('click', async () => {
+      const newName = input.value.trim();
+      if (!newName || newName.length < 2) {
+        errorNotice.textContent = 'Имя должно содержать минимум 2 символа';
+        errorNotice.style.display = 'block';
+        return;
+      }
+      saveBtn.disabled = true;
+      saveBtn.textContent = 'Сохранение…';
+      errorNotice.style.display = 'none';
+
+      try {
+        const { data, error } = await supabase.rpc('update_profile_display_name', { p_display_name: newName });
+        if (error) throw error;
+        if (data && typeof data === 'object' && (data as any).success === false) {
+          throw new Error((data as any).error || 'Ошибка обновления имени');
+        }
+
+        // Update local auth state and re-render dashboard
+        if (this.authState.status === 'active') {
+          this.authState.profile.display_name = newName;
+          this.mountDashboard(newName, this.authState.profile.role, this.authState.user.id, this.authState.profile);
+        }
+        overlay.remove();
+      } catch (err: unknown) {
+        saveBtn.disabled = false;
+        saveBtn.textContent = 'Сохранить';
+        errorNotice.textContent = err instanceof Error ? err.message : 'Не удалось сохранить имя';
+        errorNotice.style.display = 'block';
+      }
+    });
+
+    footer.append(cancelBtn, saveBtn);
+    card.append(header, body, footer);
+    overlay.append(card);
+    document.body.append(overlay);
+    input.focus();
+    input.select();
+  }
+
   private destroyCurrentPage(): void {
     this.currentPage?.destroy();
     this.currentPage = null;
@@ -301,6 +400,7 @@ export class DashboardApp {
     this.unsubscribeAuth?.();
     this.auth.dispose();
     window.removeEventListener('hashchange', this.routeHandler);
+    window.removeEventListener('fp-edit-profile-name', this.profileRenameListener);
   }
 }
 

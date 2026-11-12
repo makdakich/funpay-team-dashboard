@@ -173,7 +173,17 @@ export class TeamPage {
     const initials = profile.display_name.trim().split(/\s+/).slice(0, 2).map(part => part[0]?.toUpperCase() ?? '').join('') || 'FP';
     const avatar = element('span', 'member-avatar', [initials]);
     const identity = element('span', 'member-identity');
-    identity.append(element('strong', '', [profile.display_name]));
+    const nameWrap = element('span', 'member-name-wrap');
+    nameWrap.append(element('strong', '', [profile.display_name]));
+    if (profile.user_id === this.currentUserProfile?.user_id) {
+      const editBtn = createButton('✏️', 'button button-ghost button-xs member-rename-btn');
+      editBtn.title = 'Изменить своё имя';
+      editBtn.addEventListener('click', () => {
+        window.dispatchEvent(new CustomEvent('fp-edit-profile-name', { detail: { name: profile.display_name } }));
+      });
+      nameWrap.append(editBtn);
+    }
+    identity.append(nameWrap);
     person.append(avatar, identity);
 
     // Роль

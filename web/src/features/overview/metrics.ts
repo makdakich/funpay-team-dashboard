@@ -47,6 +47,9 @@ export interface ExecutiveKpis {
   latestDateStr: string;
 }
 
+export const FUNPAY_TZ_OFFSET_HOURS = 3;
+export const MSK_OFFSET_MS = FUNPAY_TZ_OFFSET_HOURS * 3600 * 1000;
+
 /**
  * Aggregate closed orders amount by currency (strict cents arithmetic)
  */
@@ -73,9 +76,10 @@ export function computeExecutiveKpis(
   sharePercent: number = 10,
   referenceTime: number = Date.now()
 ): ExecutiveKpis {
-  const now = new Date(referenceTime);
-  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0).getTime();
-  const d7Start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6, 0, 0, 0, 0).getTime();
+  // FunPay operates in Moscow Time (UTC+3)
+  const nowMsk = new Date(referenceTime + MSK_OFFSET_MS);
+  const todayStart = Date.UTC(nowMsk.getUTCFullYear(), nowMsk.getUTCMonth(), nowMsk.getUTCDate()) - MSK_OFFSET_MS;
+  const d7Start = todayStart - 6 * 24 * 3600 * 1000;
 
   let todayTurnover = 0;
   let todayOrdersCount = 0;
@@ -116,10 +120,10 @@ export function computeExecutiveKpis(
   const successRatePercent = totalDecided > 0 ? Math.round((successfulOrdersCount / totalDecided) * 100) : 100;
 
   const earliestDateStr = minTs !== Infinity
-    ? new Date(minTs).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', year: 'numeric' })
+    ? new Date(minTs + MSK_OFFSET_MS).toLocaleDateString('ru-RU', { timeZone: 'UTC', day: 'numeric', month: 'short', year: 'numeric' })
     : '—';
   const latestDateStr = maxTs > 0
-    ? new Date(maxTs).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', year: 'numeric' })
+    ? new Date(maxTs + MSK_OFFSET_MS).toLocaleDateString('ru-RU', { timeZone: 'UTC', day: 'numeric', month: 'short', year: 'numeric' })
     : 'сегодня';
 
   return {
@@ -138,15 +142,15 @@ export function computeExecutiveKpis(
 }
 
 /**
- * Compute timestamp range boundaries
+ * Compute timestamp range boundaries aligned with FunPay MSK time
  */
 export function computeDateRange(
   period: PeriodOption,
   orders: readonly OverviewOrderPoint[] = [],
   referenceTime: number = Date.now()
 ): DateRange {
-  const now = new Date(referenceTime);
-  const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999).getTime();
+  const nowMsk = new Date(referenceTime + MSK_OFFSET_MS);
+  const todayEnd = Date.UTC(nowMsk.getUTCFullYear(), nowMsk.getUTCMonth(), nowMsk.getUTCDate(), 23, 59, 59, 999) - MSK_OFFSET_MS;
 
   if (period === 'all') {
     let minTimestamp = Infinity;
@@ -157,29 +161,31 @@ export function computeDateRange(
     }
 
     if (minTimestamp === Infinity) {
-      const start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 29, 0, 0, 0, 0).getTime();
+      const start = todayEnd - 30 * 24 * 3600 * 1000 + 1;
       return { start, end: todayEnd, isValid: true, label: 'Всё время (нет заказов)' };
     }
 
-    const minDate = new Date(minTimestamp);
-    const start = new Date(minDate.getFullYear(), minDate.getMonth(), minDate.getDate(), 0, 0, 0, 0).getTime();
+    const minDateMsk = new Date(minTimestamp + MSK_OFFSET_MS);
+    const start = Date.UTC(minDateMsk.getUTCFullYear(), minDateMsk.getUTCMonth(), minDateMsk.getUTCDate()) - MSK_OFFSET_MS;
     return {
       start,
       end: todayEnd,
       isValid: true,
-      label: `Всё время (${new Date(start).toLocaleDateString('ru-RU')} — ${new Date(todayEnd).toLocaleDateString('ru-RU')})`
+      label: `Всё время (${new Date(start + MSK_OFFSET_MS).toLocaleDateString('ru-RU', { timeZone: 'UTC' })} — ${new Date(todayEnd + MSK_OFFSET_MS).toLocaleDateString('ru-RU', { timeZone: 'UTC' })})`
     };
   }
 
   const days = parseInt(period, 10) || 7;
-  const startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - (days - 1), 0, 0, 0, 0);
-  const start = startDate.getTime();
+  const start = Date.UTC(nowMsk.getUTCFullYear(), nowMsk.getUTCMonth(), nowMsk.getUTCDate() - (days - 1)) - MSK_OFFSET_MS;
+
+  const startDateLabel = new Date(start + MSK_OFFSET_MS).toLocaleDateString('ru-RU', { timeZone: 'UTC' });
+  const endDateLabel = new Date(todayEnd + MSK_OFFSET_MS).toLocaleDateString('ru-RU', { timeZone: 'UTC' });
 
   return {
     start,
     end: todayEnd,
     isValid: true,
-    label: `${days} дней (${startDate.toLocaleDateString('ru-RU')} — ${now.toLocaleDateString('ru-RU')})`
+    label: `${days} дней (${startDateLabel} — ${endDateLabel})`
   };
 }
 
@@ -234,16 +240,19 @@ export function generateBuckets(
       currTime = nextHour;
     }
   } else if (granularity === 'days') {
-    const curDate = new Date(startMs);
-    curDate.setHours(0, 0, 0, 0);
+    // FunPay days are strictly aligned to Moscow Time (UTC+3)
+    const curMsk = new Date(startMs + MSK_OFFSET_MS);
+    let curDayStart = Date.UTC(curMsk.getUTCFullYear(), curMsk.getUTCMonth(), curMsk.getUTCDate()) - MSK_OFFSET_MS;
 
-    while (curDate.getTime() <= endMs) {
-      const bStart = Math.max(startMs, curDate.getTime());
-      const nextDate = new Date(curDate.getFullYear(), curDate.getMonth(), curDate.getDate() + 1, 0, 0, 0, 0);
-      const bEnd = Math.min(endMs, nextDate.getTime() - 1);
+    while (curDayStart <= endMs) {
+      const bStart = Math.max(startMs, curDayStart);
+      const nextDayStart = curDayStart + 24 * 3600 * 1000;
+      const bEnd = Math.min(endMs, nextDayStart - 1);
 
-      const label = `${pad2(curDate.getDate())}.${pad2(curDate.getMonth() + 1)}`;
-      const fullLabel = curDate.toLocaleDateString('ru-RU', {
+      const dMsk = new Date(curDayStart + MSK_OFFSET_MS);
+      const label = `${pad2(dMsk.getUTCDate())}.${pad2(dMsk.getUTCMonth() + 1)}`;
+      const fullLabel = dMsk.toLocaleDateString('ru-RU', {
+        timeZone: 'UTC',
         weekday: 'short',
         year: 'numeric',
         month: 'long',
@@ -251,7 +260,7 @@ export function generateBuckets(
       });
 
       buckets.push({
-        key: `d_${curDate.getTime()}`,
+        key: `d_${curDayStart}`,
         startTime: bStart,
         endTime: bEnd,
         label,
@@ -262,7 +271,7 @@ export function generateBuckets(
         refundsCount: 0,
         refundsAmount: 0
       });
-      curDate.setTime(nextDate.getTime());
+      curDayStart = nextDayStart;
     }
   } else if (granularity === 'weeks') {
     const cur = new Date(startMs);

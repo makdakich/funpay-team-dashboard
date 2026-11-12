@@ -7,8 +7,10 @@ import {
   clearAuthSession,
   isSessionExpired,
   loadAuthSession,
+  loadCloudCredentials,
   loadFreshSession,
-  saveAuthSession
+  saveAuthSession,
+  saveCloudCredentials
 } from '../api/auth';
 import { CloudAuthSession, CloudAuthState } from '../shared/types';
 import { debugLog, generateUuid } from '../shared/utils';
@@ -670,11 +672,13 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
           const url = state.settings.supabaseUrl || DEFAULT_SUPABASE_CONFIG.url;
           const key = state.settings.supabaseKey || DEFAULT_SUPABASE_CONFIG.anonKey;
           try {
-            const session = await new SupabaseAuth(url, key).signInWithPassword(
-              message.payload?.email || '',
-              message.payload?.password || ''
-            );
+            const email = (message.payload?.email || '').trim();
+            const password = message.payload?.password || '';
+            const session = await new SupabaseAuth(url, key).signInWithPassword(email, password);
             await saveAuthSession(session);
+            if (email && password) {
+              await saveCloudCredentials({ email, password });
+            }
 
             // Auto-sync active local shift to cloud immediately if operator is currently on shift
             try {
@@ -737,6 +741,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         }
 
         case 'SIGN_OUT_CLOUD': {
+          await saveCloudCredentials(null);
           const session = await loadAuthSession();
           if (session) {
             const state = await loadState();

@@ -209,8 +209,15 @@ export class SupabaseAuth {
 }
 
 // ---------------------------------------------------------------------------
-// Session persistence (chrome.storage.local)
+// Session & Credentials persistence (chrome.storage.local)
 // ---------------------------------------------------------------------------
+
+export const CREDENTIALS_STORAGE_KEY = 'fphk_cloud_credentials';
+
+export interface StoredCloudCredentials {
+  email: string;
+  password?: string;
+}
 
 function hasChromeStorage(): boolean {
   return typeof chrome !== 'undefined' && !!chrome.storage?.local;
@@ -239,28 +246,65 @@ export async function clearAuthSession(): Promise<void> {
   await saveAuthSession(null);
 }
 
+export async function saveCloudCredentials(creds: StoredCloudCredentials | null): Promise<void> {
+  if (!hasChromeStorage()) return;
+  if (!creds) {
+    await chrome.storage.local.remove([CREDENTIALS_STORAGE_KEY]);
+    return;
+  }
+  await chrome.storage.local.set({ [CREDENTIALS_STORAGE_KEY]: creds });
+}
+
+export async function loadCloudCredentials(): Promise<StoredCloudCredentials | null> {
+  if (!hasChromeStorage()) return null;
+  const stored = await chrome.storage.local.get([CREDENTIALS_STORAGE_KEY]);
+  const creds = stored[CREDENTIALS_STORAGE_KEY] as StoredCloudCredentials | undefined;
+  if (!creds?.email) return null;
+  return creds;
+}
+
 export function isSessionExpired(session: CloudAuthSession, now: number = Date.now()): boolean {
   return !session.expiresAt || session.expiresAt - EXPIRY_SKEW_MS <= now;
 }
 
 /**
- * Load the stored session and silently refresh it when the access token is about to expire.
- * Returns null when there is no session or the refresh token is no longer accepted.
+ * Load the stored session and silently refresh or re-authenticate when needed.
+ * Never drops the session on transient offline or network connection errors.
+ * Silently signs in with saved credentials if refresh token was invalidated.
  */
 export async function loadFreshSession(url: string, anonKey: string): Promise<CloudAuthSession | null> {
   const session = await loadAuthSession();
-  if (!session) return null;
 
-  if (!isSessionExpired(session)) {
+  if (session && !isSessionExpired(session)) {
     return session;
   }
 
-  try {
-    const refreshed = await new SupabaseAuth(url, anonKey).refreshSession(session.refreshToken);
-    await saveAuthSession(refreshed);
-    return refreshed;
-  } catch {
-    await clearAuthSession();
-    return null;
+  if (session?.refreshToken) {
+    try {
+      const refreshed = await new SupabaseAuth(url, anonKey).refreshSession(session.refreshToken);
+      await saveAuthSession(refreshed);
+      return refreshed;
+    } catch (refreshErr) {
+      const msg = refreshErr instanceof Error ? refreshErr.message.toLowerCase() : '';
+      const isFatal = msg.includes('invalid') || msg.includes('revoked') || msg.includes('not found') || msg.includes('expired');
+      if (!isFatal) {
+        // Transient network issue: keep existing session intact so offline state doesn't wipe auth
+        return session;
+      }
+    }
   }
+
+  // Fallback: silent auto-login via persisted credentials so user never has to re-type password
+  const creds = await loadCloudCredentials();
+  if (creds?.email && creds?.password) {
+    try {
+      const reauthed = await new SupabaseAuth(url, anonKey).signInWithPassword(creds.email, creds.password);
+      await saveAuthSession(reauthed);
+      return reauthed;
+    } catch {
+      // Re-auth failed (e.g. offline)
+    }
+  }
+
+  return session || null;
 }
