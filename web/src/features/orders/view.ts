@@ -237,7 +237,7 @@ export class OrdersPage {
     headRow.append(this.sortableHeader('order_id', 'Заказ'));
     headRow.append(element('th', '', ['Покупатель']));
     headRow.append(element('th', '', ['Магазин']));
-    headRow.append(this.sortableHeader('amount', 'Сумма'));
+    headRow.append(this.sortableHeader('amount', 'Сумма', 'right'));
     headRow.append(element('th', '', ['Статус']));
     headRow.append(element('th', '', ['Оператор']));
     headRow.append(element('th', '', ['Атрибуция']));
@@ -252,10 +252,15 @@ export class OrdersPage {
     return wrap;
   }
 
-  private sortableHeader(column: OrderSortColumn, label: string): HTMLTableCellElement {
-    const cell = element('th');
+  private sortableHeader(column: OrderSortColumn, label: string, align: 'left' | 'right' = 'left'): HTMLTableCellElement {
+    const cell = element('th', align === 'right' ? 'th-numeric' : '');
+    if (align === 'right') cell.style.textAlign = 'right';
     const active = this.query.sortBy === column;
     const button = element('button', 'sort-button' + (active ? ' sort-button-active' : ''));
+    if (align === 'right') {
+      button.style.justifyContent = 'flex-end';
+      button.style.width = '100%';
+    }
     button.type = 'button';
     button.append(document.createTextNode(label));
     if (active) button.append(icon(this.query.sortDirection === 'asc' ? 'arrow-up' : 'arrow-down'));

@@ -216,7 +216,13 @@ export class FinancePage {
       panel.body.append(createEmptyState('Нет закрытых заказов', 'Ни в текущем, ни в предыдущем периоде нет заказов со статусом closed.'));
     } else {
       panel.body.append(createTable(
-        ['Валюта', 'Оборот сейчас', 'Доля 10%', 'Предыдущий период', 'Изменение'],
+        [
+          'Валюта',
+          { label: 'Оборот сейчас', align: 'right' },
+          { label: 'Доля 10%', align: 'right' },
+          { label: 'Предыдущий период', align: 'right' },
+          { label: 'Изменение', align: 'right' }
+        ],
         rows
       ));
     }
@@ -249,7 +255,15 @@ export class FinancePage {
       );
       return row;
     });
-    panel.body.append(createTable(['Валюта', 'Заказов', 'Оборот', 'Доля 10%'], rows));
+    panel.body.append(createTable(
+      [
+        'Валюта',
+        { label: 'Заказов', align: 'right' },
+        { label: 'Оборот', align: 'right' },
+        { label: 'Доля 10%', align: 'right' }
+      ],
+      rows
+    ));
     return panel.panel;
   }
 
@@ -263,13 +277,21 @@ export class FinancePage {
       const row = element('tr');
       row.append(
         element('td', '', [group.label]),
-        element('td', 'tabular-nums', [group.count.toLocaleString('ru-RU')]),
+        element('td', 'tabular-nums numeric-cell', [group.count.toLocaleString('ru-RU')]),
         element('td', 'numeric-cell', [currencySummary(group.turnover)]),
         element('td', 'numeric-cell share-cell', [currencySummary(group.share)])
       );
       return row;
     });
-    panel.body.append(createTable([firstColumn, 'Заказов', 'Оборот', 'Доля 10%'], rows));
+    panel.body.append(createTable(
+      [
+        firstColumn,
+        { label: 'Заказов', align: 'right' },
+        { label: 'Оборот', align: 'right' },
+        { label: 'Доля 10%', align: 'right' }
+      ],
+      rows
+    ));
     return panel.panel;
   }
 

@@ -698,7 +698,18 @@ export class ShiftHistoryPage {
     }
     const rows = history.items.map(item => this.renderRow(item));
     return createTable(
-      ['Оператор', 'Магазин', 'Начало', 'Окончание', 'Длительность', 'Статус', 'Заказы', 'Оборот (closed)', 'Доля 10%', ''],
+      [
+        'Оператор',
+        'Магазин',
+        'Начало',
+        'Окончание',
+        'Длительность',
+        'Статус',
+        { label: 'Заказы', align: 'right' },
+        { label: 'Оборот (closed)', align: 'right' },
+        { label: 'Доля 10%', align: 'right' },
+        ''
+      ],
       rows,
       'table-wide'
     );
@@ -736,7 +747,7 @@ export class ShiftHistoryPage {
       statusCell.append(badge('Завершена', 'neutral'));
     }
 
-    const orderCell = element('td', 'tabular-nums', [String(item.orderCount)]);
+    const orderCell = element('td', 'tabular-nums numeric-cell', [String(item.orderCount)]);
     const turnoverCell = element('td', 'numeric-cell', [totalsAreEmpty(item.turnover) ? '—' : formatCurrencyTotals(item.turnover, '—')]);
     const shareCell = element('td', 'numeric-cell share-cell', [totalsAreEmpty(item.share) ? '—' : formatCurrencyTotals(item.share, '—')]);
 

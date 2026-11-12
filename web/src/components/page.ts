@@ -71,13 +71,41 @@ export function createRealtimeIndicator(initialText: string): RealtimeIndicator 
   };
 }
 
-/** Собирает таблицу со строкой заголовков и телом; прокрутка по горизонтали уже в CSS. */
-export function createTable(headers: readonly string[], rows: readonly HTMLElement[], minWidthClass = ''): HTMLElement {
+export type TableHeaderItem = string | { label: string; align?: 'left' | 'right' | 'center'; className?: string };
+
+/** Собирает таблицу со строкой заголовков и телом; автоматически выравнивает заголовки над числовыми ячейками. */
+export function createTable(headers: readonly TableHeaderItem[], rows: readonly HTMLElement[], minWidthClass = ''): HTMLElement {
   const wrap = element('div', 'table-scroll');
   const table = element('table', 'data-table ' + minWidthClass);
   const thead = element('thead');
   const headerRow = element('tr');
-  for (const title of headers) headerRow.append(element('th', '', [title]));
+  const firstRow = rows[0];
+  const firstCells = firstRow ? (Array.from(firstRow.children) as HTMLElement[]) : [];
+
+  for (let i = 0; i < headers.length; i++) {
+    const item = headers[i];
+    const title = typeof item === 'string' ? item : item.label;
+    const cell = firstCells[i];
+    const isNumericFromCell = Boolean(
+      cell && (
+        cell.classList.contains('numeric-cell') ||
+        cell.classList.contains('share-cell')
+      )
+    );
+    const isExplicitRight = typeof item !== 'string' && item.align === 'right';
+    const isRight = isExplicitRight || isNumericFromCell;
+
+    const thClasses = [];
+    if (isRight) thClasses.push('th-numeric');
+    if (typeof item !== 'string' && item.className) thClasses.push(item.className);
+
+    const th = element('th', thClasses.join(' '), [title]);
+    if (isRight) {
+      th.style.textAlign = 'right';
+    }
+    headerRow.append(th);
+  }
+
   thead.append(headerRow);
   const tbody = element('tbody');
   for (const row of rows) tbody.append(row);

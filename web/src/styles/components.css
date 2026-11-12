@@ -317,6 +317,11 @@ td:last-child {
   font-variant-numeric: tabular-nums;
   text-align: right;
 }
+th.th-numeric,
+.data-table th.th-numeric,
+.team-table th.th-numeric {
+  text-align: right !important;
+}
 .currency-table th:nth-child(n+2) { text-align: right; }
 .currency-code { color: var(--text); font-weight: 600; white-space: nowrap; }
 .currency-symbol {
