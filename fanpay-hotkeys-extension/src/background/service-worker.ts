@@ -215,7 +215,8 @@ async function notifyAllFunPayTabs() {
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   (async () => {
     try {
-      switch (message.type) {
+      const messageType = (message && (message.type || message.action)) as string | undefined;
+      switch (messageType) {
         case 'GET_STATE': {
           const state = await loadState();
           sendResponse({ success: true, state });
@@ -537,11 +538,54 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
             const history = await loadShiftHistory();
             const legacyShifts = history.filter(s => s.id && (!/^[0-9a-f-]{36}$/i.test(s.id) || s.operatorName === 'Алекс'));
             if (legacyShifts.length === 0) {
-              sendResponse({ success: true, count: 0, message: 'Исторические смены не найдены' });
+              sendResponse({
+                success: true,
+                count: 0,
+                importedCount: 0,
+                skippedCount: 0,
+                message: 'Исторические смены не найдены'
+              });
               break;
             }
             const { client } = await createCloudClient();
             const result = await client.importHistoricalShifts(legacyShifts);
+
+            // Синхронизируем локальную историю ТОЛЬКО после подтверждения успешного импорта
+            if (result && result.success) {
+              try {
+                const state = await loadState();
+                const cloudShifts = await client.fetchCloudShifts(250, {
+                  localOrders: state.cache.orders || [],
+                  sellerSharePercent: state.settings.sellerSharePercent ?? 10
+                });
+
+                const currentLocal = await loadShiftHistory();
+
+                if (cloudShifts && cloudShifts.length > 0) {
+                  const cloudIds = new Set(cloudShifts.map(s => s.id));
+                  const cloudLegacyIds = new Set(
+                    cloudShifts
+                      .map(s => s.legacyId)
+                      .filter((id): id is string => Boolean(id))
+                  );
+
+                  // Сохраняем только локальные смены, не подтверждённые в облаке ни по UUID, ни по legacy_id
+                  const nonLegacyLocal = currentLocal.filter(s => {
+                    const isConfirmedInCloud = cloudIds.has(s.id) || cloudLegacyIds.has(s.id);
+                    return !isConfirmedInCloud;
+                  });
+                  const mergedHistory = [...cloudShifts, ...nonLegacyLocal].sort((a, b) => b.startTime - a.startTime);
+                  await chrome.storage.local.set({ fphk_shift_history: mergedHistory });
+                } else {
+                  // Защита от потери данных: если fetchCloudShifts вернул пустой список или завершился ошибкой,
+                  // исходная локальная история гарантированно сохраняется нетронутой.
+                  console.warn('[Supabase] fetchCloudShifts returned empty after import; local shift history preserved untouched.');
+                }
+              } catch (syncErr) {
+                console.warn('[Supabase] Failed to sync local history after import:', syncErr);
+              }
+            }
+
             sendResponse(result);
           } catch (err: unknown) {
             sendResponse({ success: false, error: err instanceof Error ? err.message : 'Ошибка импорта' });

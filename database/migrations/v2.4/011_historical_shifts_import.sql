@@ -96,11 +96,10 @@ BEGIN
         v_total_count := v_total_count + 1;
         v_legacy_id := NULLIF(TRIM(v_item->>'id'), '');
 
-        -- Парсинг start_time (число в миллисекундах или ISO-строка):
+        -- Парсинг start_time (число в миллисекундах [целое или с плавающей точкой] или ISO-строка):
         BEGIN
-            IF (v_item->>'startTime') ~ '^[0-9]+$' THEN
-                v_start_ms := (v_item->>'startTime')::BIGINT;
-                v_start_time := to_timestamp(v_start_ms / 1000.0);
+            IF (v_item->>'startTime') ~ '^[0-9]+(\.[0-9]+)?$' THEN
+                v_start_time := to_timestamp(((v_item->>'startTime')::DOUBLE PRECISION) / 1000.0);
             ELSE
                 v_start_time := (v_item->>'startTime')::TIMESTAMPTZ;
             END IF;
@@ -108,11 +107,10 @@ BEGIN
             v_start_time := NULL;
         END;
 
-        -- Парсинг end_time (число в миллисекундах или ISO-строка):
+        -- Парсинг end_time (число в миллисекундах [целое или с плавающей точкой] или ISO-строка):
         BEGIN
-            IF (v_item->>'endTime') ~ '^[0-9]+$' THEN
-                v_end_ms := (v_item->>'endTime')::BIGINT;
-                v_end_time := to_timestamp(v_end_ms / 1000.0);
+            IF (v_item->>'endTime') ~ '^[0-9]+(\.[0-9]+)?$' THEN
+                v_end_time := to_timestamp(((v_item->>'endTime')::DOUBLE PRECISION) / 1000.0);
             ELSE
                 v_end_time := (v_item->>'endTime')::TIMESTAMPTZ;
             END IF;
@@ -127,9 +125,9 @@ BEGIN
         END IF;
 
         -- Расчёт длительности в секундах:
-        IF (v_item->>'duration') ~ '^[0-9]+$' THEN
+        IF (v_item->>'duration') ~ '^[0-9]+(\.[0-9]+)?$' THEN
             -- В CompletedShift duration хранится в миллисекундах
-            v_duration_seconds := GREATEST(0, ROUND((v_item->>'duration')::NUMERIC / 1000.0)::INTEGER);
+            v_duration_seconds := GREATEST(0, ROUND(((v_item->>'duration')::NUMERIC) / 1000.0)::INTEGER);
         ELSE
             v_duration_seconds := GREATEST(0, EXTRACT(EPOCH FROM (v_end_time - v_start_time))::INTEGER);
         END IF;
@@ -148,36 +146,41 @@ BEGIN
         END IF;
 
         -- Безопасная вставка строго завершённой смены для Создателя:
-        INSERT INTO public.shifts (
-            id,
-            user_id,
-            seller_account_id,
-            start_time,
-            end_time,
-            duration_seconds,
-            status,
-            legacy_id,
-            created_at,
-            updated_at
-        ) VALUES (
-            v_shift_uuid,
-            v_caller_id, -- Исключительно текущий Создатель
-            v_default_seller,
-            v_start_time,
-            v_end_time,
-            v_duration_seconds,
-            'completed',
-            v_legacy_id,
-            v_start_time,
-            NOW()
-        )
-        ON CONFLICT (id) DO NOTHING;
+        BEGIN
+            INSERT INTO public.shifts (
+                id,
+                user_id,
+                seller_account_id,
+                start_time,
+                end_time,
+                duration_seconds,
+                status,
+                legacy_id,
+                created_at,
+                updated_at
+            ) VALUES (
+                v_shift_uuid,
+                v_caller_id, -- Исключительно текущий Создатель
+                v_default_seller,
+                v_start_time,
+                v_end_time,
+                v_duration_seconds,
+                'completed',
+                v_legacy_id,
+                v_start_time,
+                NOW()
+            )
+            ON CONFLICT (id) DO NOTHING;
 
-        IF FOUND THEN
-            v_imported_count := v_imported_count + 1;
-        ELSE
+            IF FOUND THEN
+                v_imported_count := v_imported_count + 1;
+            ELSE
+                v_skipped_count := v_skipped_count + 1;
+            END IF;
+        EXCEPTION WHEN unique_violation THEN
+            -- Гарантия идемпотентности: перехватывает конфликт по idx_shifts_legacy_id или id
             v_skipped_count := v_skipped_count + 1;
-        END IF;
+        END;
     END LOOP;
 
     RETURN jsonb_build_object(

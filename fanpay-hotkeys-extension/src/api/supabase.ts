@@ -39,6 +39,7 @@ export interface RemoteShiftRecord {
   end_time?: string | null;
   duration_seconds?: number | null;
   status: 'active' | 'completed';
+  legacy_id?: string | null;
   profiles?: { display_name?: string | null } | null;
 }
 
@@ -270,7 +271,7 @@ export class SupabaseClient {
    */
   public async fetchCloudShifts(limit: number = 150, options: FetchShiftsOptions = {}): Promise<CompletedShift[]> {
     const query =
-      '/rest/v1/shifts?select=id,user_id,seller_account_id,start_time,end_time,duration_seconds,status,profiles(display_name)' +
+      '/rest/v1/shifts?select=id,user_id,seller_account_id,start_time,end_time,duration_seconds,status,legacy_id,profiles(display_name)' +
       '&order=start_time.desc&limit=' + encodeURIComponent(String(limit));
 
     const outcome = await this.request<RemoteShiftRecord[]>(query);
@@ -294,6 +295,7 @@ export class SupabaseClient {
 
       return {
         id: row.id,
+        legacyId: row.legacy_id || undefined,
         operatorName: row.profiles?.display_name || 'Оператор',
         startTime,
         endTime,

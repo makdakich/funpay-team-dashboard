@@ -240,6 +240,7 @@ export interface ShiftEarnings {
 
 export interface CompletedShift {
   id: string;
+  legacyId?: string;    // Original legacy ID from Chrome Extension (if imported)
   operatorName: string; // Worker/operator name
   startTime: number;    // Unix timestamp in ms
   endTime: number;      // Unix timestamp in ms

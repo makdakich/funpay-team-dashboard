@@ -46,6 +46,7 @@ Thumbs.db
 temp_audit/
 backups/
 supabase/.temp/
+scripts/data/
 test_geom.db
 test_render.db
 scratch/
