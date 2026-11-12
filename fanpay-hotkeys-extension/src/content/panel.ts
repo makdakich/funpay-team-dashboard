@@ -1,6 +1,7 @@
 import { AppSettings, Profile, Template } from '../shared/types';
 import { FunPayDomAdapter } from './adapter';
 import { substituteVariables } from '../shared/utils';
+import { safeSendMessage } from './runtime';
 
 export class FunPayPanel {
   private container: HTMLElement | null = null;
@@ -229,7 +230,7 @@ export class FunPayPanel {
       // Settings button (⚙️)
       this.container.querySelector('.fphk-settings-btn')?.addEventListener('click', (e) => {
         e.stopPropagation();
-        chrome.runtime.sendMessage({ type: 'OPEN_OPTIONS' });
+        safeSendMessage({ type: 'OPEN_OPTIONS' });
       });
 
       // Template buttons
@@ -341,13 +342,13 @@ export class FunPayPanel {
     };
     this.initialLeft = position.left;
     this.initialTop = position.top;
-    chrome.runtime.sendMessage({
+    safeSendMessage({
       type: 'UPDATE_SETTINGS',
       payload: {
         panelPosition: position,
         panelVisible: !this.isCollapsed
       }
-    }).catch(() => {});
+    });
   }
 
   private handleTemplateClick(tmpl: Template) {

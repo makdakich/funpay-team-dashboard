@@ -1,6 +1,7 @@
 import { ShiftState, ExtensionState } from '../shared/types';
 import { formatDuration, formatTimeOnly } from '../shared/datetime';
 import { calculateShiftEarnings, formatMoney } from '../shared/utils';
+import { safeSendMessage } from './runtime';
 
 export class ShiftHudWidget {
   private container: HTMLDivElement | null = null;
@@ -266,7 +267,7 @@ export class ShiftHudWidget {
         (confirmStopBtn as HTMLButtonElement).disabled = true;
 
         try {
-          await chrome.runtime.sendMessage({ type: 'STOP_SHIFT' });
+          await safeSendMessage({ type: 'STOP_SHIFT' });
           this.showConfirmModal = false;
           this.destroy();
         } catch (err) {
@@ -354,10 +355,10 @@ export class ShiftHudWidget {
       left: Math.round(rect.left),
       minimized: this.isMinimized
     };
-    chrome.runtime.sendMessage({
+    safeSendMessage({
       type: 'UPDATE_SETTINGS',
       payload: { shiftWidgetPosition: position }
-    }).catch(() => {});
+    });
   }
 
   private startLiveTimer() {

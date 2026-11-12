@@ -1,4 +1,5 @@
 import { ExtensionState, FunPayContext, ShiftState } from '../shared/types';
+import { safeSendMessage } from './runtime';
 import { FunPayDomAdapter } from './adapter';
 import { HotkeyManager } from './hotkeys';
 import { FunPayPanel } from './panel';
@@ -42,11 +43,11 @@ class FunPayContentController {
 
     // 2. Fetch fresh state from background service worker
     try {
-      const response = await chrome.runtime.sendMessage({ type: 'GET_STATE' });
+      const response = await safeSendMessage<{ state?: ExtensionState }>({ type: 'GET_STATE' });
       if (response && response.state) {
         this.applyState(response.state);
       }
-      const shiftResp = await chrome.runtime.sendMessage({ type: 'GET_SHIFT_STATE' });
+      const shiftResp = await safeSendMessage<{ shiftState?: ShiftState }>({ type: 'GET_SHIFT_STATE' });
       if (shiftResp && shiftResp.shiftState) {
         this.shiftState = shiftResp.shiftState;
         if (this.state) {
@@ -80,10 +81,10 @@ class FunPayContentController {
   }
 
   private handleProfileChange(profileId: string) {
-    chrome.runtime.sendMessage({
+    safeSendMessage({
       type: 'SET_SELECTED_PROFILE',
       payload: { profileId }
-    }).catch(() => {});
+    });
   }
 
   private setupMessageListener() {
