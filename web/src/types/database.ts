@@ -122,6 +122,15 @@ export interface RecentActivity {
   displayName: string;
 }
 
+export interface OverviewOrderPoint {
+  orderId: string;
+  amount: number;
+  currency: CurrencyCode;
+  status: OrderStatus;
+  timestamp: number;
+  funpayCreatedAt: string;
+}
+
 export interface OverviewData {
   activeMembers: number;
   activeShifts: number;
@@ -130,4 +139,6 @@ export interface OverviewData {
   turnoverByCurrency: CurrencyTotals;
   operatorShareByCurrency: CurrencyTotals;
   recentActivity: RecentActivity[];
+  orders: OverviewOrderPoint[];
+  sellerAccountId?: string;
 }

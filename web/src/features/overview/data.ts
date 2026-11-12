@@ -1,4 +1,4 @@
-import type { CurrencyCode, CurrencyTotals, OverviewData, Profile, RecentActivity, Shift } from '@/types/database';
+import type { CurrencyCode, CurrencyTotals, OrderStatus, OverviewData, OverviewOrderPoint, Profile, RecentActivity, Shift } from '@/types/database';
 import { aggregateClosedOrders } from './metrics';
 import { supabase } from '@/lib/supabase';
 
@@ -34,38 +34,60 @@ export async function loadOverview(): Promise<OverviewData> {
     displayName: profileNames.get(shift.user_id) ?? 'Участник команды'
   }));
 
-  const financials = await loadClosedOrderMetrics();
+  const { orders, sellerAccountId } = await loadAllOrders();
+  const closedRows = orders
+    .filter(o => o.status === 'closed')
+    .map(o => ({ amount: String(o.amount), currency: o.currency }));
+
+  const financials = aggregateClosedOrders(closedRows);
 
   return {
     activeMembers: profiles.length,
     activeShifts: activeShifts.length,
-    totalOrders: totalOrdersResult.count ?? 0,
+    totalOrders: totalOrdersResult.count ?? orders.length,
     closedOrders: financials.count,
     turnoverByCurrency: financials.turnoverByCurrency ?? EMPTY_CURRENCIES,
     operatorShareByCurrency: financials.operatorShareByCurrency ?? EMPTY_CURRENCIES,
-    recentActivity
+    recentActivity,
+    orders,
+    sellerAccountId
   };
 }
 
-async function loadClosedOrderMetrics() {
-  const rows: { amount: string; currency: CurrencyCode }[] = [];
+async function loadAllOrders(): Promise<{ orders: OverviewOrderPoint[]; sellerAccountId?: string }> {
+  const orders: OverviewOrderPoint[] = [];
   let offset = 0;
+  let sellerAccountId: string | undefined;
 
   while (true) {
     const { data, error } = await supabase
       .from('orders')
-      .select('seller_account_id,order_id,amount,currency')
-      .eq('status', 'closed')
+      .select('seller_account_id,order_id,amount,currency,status,funpay_created_at')
       .order('seller_account_id', { ascending: true })
       .order('order_id', { ascending: true })
       .range(offset, offset + PAGE_SIZE - 1);
 
     if (error) throw error;
     const page = data ?? [];
-    rows.push(...page.map(row => ({ amount: String(row.amount), currency: row.currency as CurrencyCode })));
+    for (const row of page) {
+      if (!sellerAccountId && row.seller_account_id) {
+        sellerAccountId = row.seller_account_id;
+      }
+      const rawDate = row.funpay_created_at;
+      const ts = rawDate ? new Date(rawDate).getTime() : 0;
+      orders.push({
+        orderId: row.order_id,
+        amount: Number(row.amount) || 0,
+        currency: row.currency as CurrencyCode,
+        status: row.status as OrderStatus,
+        timestamp: isNaN(ts) ? 0 : ts,
+        funpayCreatedAt: rawDate || ''
+      });
+    }
+
     if (page.length < PAGE_SIZE) break;
     offset += PAGE_SIZE;
   }
 
-  return aggregateClosedOrders(rows);
+  return { orders, sellerAccountId };
 }

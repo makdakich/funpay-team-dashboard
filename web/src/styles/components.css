@@ -841,8 +841,435 @@ td:last-child {
 .form-note { font-size: 11.5px; color: var(--text-muted); }
 .modal-actions { display: flex; justify-content: flex-end; gap: 12px; margin-top: 10px; }
 
+/* ==========================================================================
+   Overview V2.4 & Advanced Sales Analytics (Extension Dashboard Parity)
+   ========================================================================== */
+.coverage-strip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: rgba(14, 19, 32, 0.6);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 10px 16px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.coverage-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.coverage-count-badge {
+  background: rgba(59, 130, 246, 0.12);
+  color: #93c5fd;
+  border: 1px solid rgba(59, 130, 246, 0.25);
+  padding: 3px 8px;
+  border-radius: var(--radius-sm);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.hero-kpi-grid {
+  display: grid;
+  grid-template-columns: 1.6fr 1fr;
+  gap: 20px;
+}
+
+.hero-balance-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  background: radial-gradient(circle at top right, rgba(59, 130, 246, 0.14), transparent 70%), var(--bg-surface);
+  border: 1px solid rgba(59, 130, 246, 0.28);
+  padding: 24px;
+  border-radius: var(--radius-lg);
+}
+
+.hero-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.hero-badge {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--blue);
+  display: block;
+  margin-bottom: 2px;
+}
+
+.hero-sub {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.currency-chips {
+  display: flex;
+  gap: 4px;
+  background: var(--bg-input);
+  padding: 3px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+}
+
+.currency-chip {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 9px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.currency-chip:hover {
+  color: var(--text);
+}
+
+.currency-chip.active {
+  background: var(--blue);
+  color: #fff;
+}
+
+.hero-balance-val {
+  font-size: clamp(28px, 3.5vw, 40px);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: #FFFFFF;
+  margin: 18px 0 22px;
+}
+
+.hero-share-control {
+  border-top: 1px solid var(--border);
+  padding-top: 16px;
+}
+
+.share-slider-label {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12.5px;
+  color: var(--text-secondary);
+  margin-bottom: 10px;
+}
+
+.share-earned-badge {
+  color: #34d399;
+  font-weight: 600;
+  font-family: 'JetBrains Mono', Consolas, monospace;
+}
+
+.share-slider-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.obsidian-slider {
+  flex: 1;
+  accent-color: var(--blue);
+  height: 6px;
+  cursor: pointer;
+}
+
+.share-num-input {
+  width: 58px;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: #fff;
+  padding: 5px 8px;
+  font-size: 12px;
+  text-align: right;
+}
+
+.hero-metrics-column {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.delta-card {
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  border-radius: var(--radius-lg);
+}
+
+.delta-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+
+.delta-name {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.delta-badge {
+  font-size: 10.5px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 4px;
+  font-family: 'JetBrains Mono', Consolas, monospace;
+}
+
+.delta-badge.positive {
+  background: rgba(16, 185, 129, 0.15);
+  color: #34D399;
+}
+
+.delta-badge.neutral {
+  background: rgba(148, 163, 184, 0.12);
+  color: var(--text-secondary);
+}
+
+.delta-badge.success {
+  background: rgba(16, 185, 129, 0.15);
+  color: #34D399;
+}
+
+.delta-value {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: -0.02em;
+}
+
+.delta-sub {
+  font-size: 11.5px;
+  color: var(--text-muted);
+  margin-top: 3px;
+}
+
+/* === Advanced Sales Analytics Chart === */
+.chart-analytics-card {
+  padding: 22px 24px 20px;
+  border-radius: var(--radius-lg);
+}
+
+.chart-top-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-bottom: 14px;
+}
+
+.chart-headline-group {
+  display: flex;
+  flex-direction: column;
+}
+
+.chart-title {
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--text);
+  margin: 0;
+}
+
+.chart-subtitle {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-top: 2px;
+}
+
+.period-pills-bar {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.period-pill {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  padding: 5px 12px;
+  font-size: 12px;
+  font-weight: 500;
+  border-radius: 20px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.period-pill:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+.period-pill.active {
+  background: var(--blue);
+  border-color: #60a5fa;
+  color: #FFFFFF;
+  font-weight: 600;
+  box-shadow: 0 0 12px rgba(59, 130, 246, 0.4);
+}
+
+.chart-sub-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 10px 0 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.segmented-control {
+  display: flex;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 2px;
+  gap: 2px;
+}
+
+.seg-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: 11.5px;
+  font-weight: 600;
+  padding: 4px 11px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.seg-btn:hover {
+  color: var(--text);
+}
+
+.seg-btn.active {
+  background: var(--bg-elevated);
+  color: var(--text);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+}
+
+.granularity-toolbar, .chart-currency-picker {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tool-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.obsidian-select {
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-size: 12px;
+  padding: 5px 10px;
+  border-radius: var(--radius-sm);
+  outline: none;
+  cursor: pointer;
+}
+
+.obsidian-select:focus {
+  border-color: var(--blue);
+}
+
+.chart-wrapper {
+  position: relative;
+  width: 100%;
+  height: 270px;
+  margin-top: 14px;
+}
+
+.chart-svg-container {
+  width: 100%;
+  height: 100%;
+}
+
+.chart-svg-container svg {
+  overflow: visible;
+}
+
+.chart-dot {
+  transition: r 0.15s ease, fill 0.15s ease;
+  cursor: pointer;
+}
+
+.chart-point-group:hover .chart-dot {
+  r: 6;
+  fill: #60a5fa;
+}
+
+.chart-floating-tooltip {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  background: rgba(14, 19, 32, 0.96);
+  border: 1px solid rgba(59, 130, 246, 0.4);
+  border-radius: var(--radius-sm);
+  padding: 8px 12px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+  pointer-events: none;
+  z-index: 10;
+  font-size: 11.5px;
+  min-width: 160px;
+}
+
+.tt-header {
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 4px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  padding-bottom: 3px;
+}
+
+.tt-metric-row {
+  color: #60a5fa;
+  font-size: 12px;
+  margin-bottom: 2px;
+}
+
+.tt-sub-row {
+  color: var(--text-secondary);
+  font-size: 10.5px;
+}
+
+.tt-refunds {
+  color: #f87171;
+}
+
+.overview-bottom-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+
+.mini-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin-top: 14px;
+}
+
 /* === Responsive Breakpoints === */
 @media (max-width: 1100px) {
+  .hero-kpi-grid { grid-template-columns: 1fr; }
+  .overview-bottom-grid { grid-template-columns: 1fr; }
   .kpi-grid { grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
   .finance-layout { grid-template-columns: 1fr; }
 }
