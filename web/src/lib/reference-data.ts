@@ -17,6 +17,7 @@ export async function loadSellerAccounts(client: DbClient = supabase): Promise<S
   const { data, error } = await client
     .from('team_seller_accounts')
     .select(SELLER_ACCOUNT_COLUMNS)
+    .eq('is_active', true)
     .order('account_name', { ascending: true });
   if (error) throw error;
   return (data ?? []) as SellerAccount[];

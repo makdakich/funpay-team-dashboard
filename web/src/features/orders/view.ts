@@ -90,6 +90,9 @@ export class OrdersPage {
       if (this.destroyed) return;
       this.profiles = profiles;
       this.shops = shops;
+      if (!this.query.sellerAccountId && shops.length > 0) {
+        this.query.sellerAccountId = shops[0].seller_account_id;
+      }
       this.fillSelect('[data-role="operator-filter"]', [{ value: '', label: 'Все операторы' }]
         .concat([{ value: UNASSIGNED_OPERATOR, label: 'Без оператора' }])
         .concat(profiles.map(profile => ({ value: profile.user_id, label: profile.display_name }))), this.query.operatorId);
@@ -265,6 +268,12 @@ export class OrdersPage {
 
   private renderRow(order: Order): HTMLTableRowElement {
     const row = element('tr', 'row-interactive');
+    const attrCell = element('td', 'attribution-cell');
+    attrCell.append(
+      badge(ATTRIBUTION_STATUS_LABELS[order.attribution_status] ?? order.attribution_status, order.attribution_status),
+      element('span', 'cell-sub', [ATTRIBUTION_SOURCE_LABELS[order.attribution_source] ?? order.attribution_source])
+    );
+
     row.append(
       element('td', 'mono-cell', [order.order_id]),
       element('td', '', [order.buyer_username ?? order.buyer_id ?? '—']),
@@ -272,7 +281,7 @@ export class OrdersPage {
       element('td', 'numeric-cell', [formatCurrency(Number(order.amount), order.currency)]),
       element('td', '', [badge(ORDER_STATUS_LABELS[order.status] ?? order.status, order.status)]),
       element('td', '', [this.operatorLabel(order.operator_id)]),
-      element('td', 'cell-sub', [this.attributionLabel(order)])
+      attrCell
     );
     const created = element('td', 'tabular-nums', [formatDate(order.funpay_created_at)]);
     const actions = element('td', 'cell-actions');
