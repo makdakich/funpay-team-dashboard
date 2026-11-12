@@ -35,7 +35,10 @@
           <span class="cockpit-tag" id="shift-badge">СМЕНА НЕ АКТИВНА</span>
           <button id="btn-popup-shift-collapse" class="btn-cockpit-minimize" title="Свернуть (скрыть имя, время и выручку)" style="display: none;">—</button>
         </div>
-        <div class="shop-badge-wrap">
+        <div class="cockpit-top-right" style="display: flex; align-items: center; gap: 6px;">
+          <select id="profile-select" class="profile-mini-select" title="Активный игровой профиль шаблонов">
+            <!-- Populated dynamically -->
+          </select>
           <span class="shop-pill" id="shop-name-badge">🏪 Hopeoflove</span>
         </div>
       </div>
@@ -134,10 +137,22 @@
       </button>
     </section>
 
+    <!-- Quick Action Templates Palette -->
+    <section class="quick-templates-section">
+      <div class="section-label-row">
+        <span class="section-micro-label">БЫСТРЫЕ ШАБЛОНЫ (КЛИК = ВСТАВИТЬ / КОПИРОВАТЬ)</span>
+        <button id="btn-popup-open-templates" class="btn-micro-link" title="Управление шаблонами в настройках">Все ↗</button>
+      </div>
+      <div class="quick-templates-grid" id="popup-quick-templates">
+        <!-- Rendered dynamically -->
+      </div>
+    </section>
+
     <!-- Bottom Dock Bar -->
     <footer class="popup-bottom-dock">
       <div class="dock-quick-links">
         <button id="btn-nav-shifts" class="dock-link-btn" title="Журнал смен">⏱️ Смены</button>
+        <button id="btn-nav-templates" class="dock-link-btn" title="Шаблоны">📝 Шаблоны</button>
         <button id="btn-nav-orders" class="dock-link-btn" title="Список заказов">📦 Заказы</button>
         <button id="btn-nav-cloud" class="dock-link-btn" title="Настройки командного облака">☁️ Облако</button>
       </div>

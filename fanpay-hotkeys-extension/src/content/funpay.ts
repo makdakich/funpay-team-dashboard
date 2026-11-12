@@ -66,7 +66,7 @@ class FunPayContentController {
     if (state.settings?.hotkeysEnabled) {
       this.hotkeys.updateData(state.templates, state.settings);
     }
-    if (state.settings?.panelEnabled) {
+    if (state.settings?.panelEnabled ?? true) {
       this.panel.init(
         state.profiles,
         state.templates,

@@ -121,7 +121,6 @@ export class DashboardApp {
     nav.append(this.createNavItem('orders', 'Заказы', 'orders'));
     nav.append(this.createNavItem('finance', 'Финансы', 'wallet'));
     nav.append(element('span', 'nav-section-label nav-section-spaced', ['ПЛАНИРУЕТСЯ']));
-    nav.append(this.createDisabledNavItem('Шаблоны', 'template'));
     nav.append(element('span', 'sidebar-spacer'));
     nav.append(this.createDisabledNavItem('Настройки команды', 'settings'));
     sidebar.append(nav);

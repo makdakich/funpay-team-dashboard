@@ -171,8 +171,8 @@ Roblox → ⚙️ Settings → Privacy & content restrictions → Visibility & p
 export const DEFAULT_SETTINGS: AppSettings = {
   selectedProfileId: 'profile-1',
   hotkeysEnabled: false,
-  panelEnabled: false,
-  panelVisible: false,
+  panelEnabled: true,
+  panelVisible: true,
   panelDocked: false,
   panelPosition: {
     top: 140,
@@ -194,5 +194,6 @@ export const DEFAULT_SETTINGS: AppSettings = {
   },
   supabaseUrl: 'https://zlpbywengymnvrpbcxvh.supabase.co',
   supabaseKey: 'sb_publishable_bNZgLYmEol6FzzqvfXOHtA_d-mzoaKR',
-  cloudSyncEnabled: true
+  cloudSyncEnabled: true,
+  sellerAccountId: '4473774'
 };

@@ -49,10 +49,27 @@ class PopupController {
       chrome.tabs.create({ url: 'https://makdakich.github.io/funpay-team-dashboard/' });
     });
 
+    // Profile select change
+    const profileSelect = document.getElementById('profile-select') as HTMLSelectElement;
+    profileSelect?.addEventListener('change', async (e) => {
+      const profileId = (e.target as HTMLSelectElement).value;
+      await chrome.runtime.sendMessage({
+        type: 'SET_SELECTED_PROFILE',
+        payload: { profileId }
+      });
+      await this.loadAndRenderState();
+    });
+
     // Navigation dock buttons
     document.getElementById('btn-nav-shifts')?.addEventListener('click', () => {
       chrome.tabs.create({ url: chrome.runtime.getURL('options/options.html#shifts') });
     });
+
+    const openTemplatesTab = () => {
+      chrome.tabs.create({ url: chrome.runtime.getURL('options/options.html#templates') });
+    };
+    document.getElementById('btn-nav-templates')?.addEventListener('click', openTemplatesTab);
+    document.getElementById('btn-popup-open-templates')?.addEventListener('click', openTemplatesTab);
 
     document.getElementById('btn-nav-orders')?.addEventListener('click', () => {
       chrome.tabs.create({ url: chrome.runtime.getURL('options/options.html#orders') });
@@ -122,6 +139,25 @@ class PopupController {
     if (opInput && !opInput.value) {
       opInput.value = this.shiftState.currentOperator || this.state?.settings?.lastOperator || 'Алекс';
     }
+
+    // Render Profiles Dropdown
+    const select = document.getElementById('profile-select') as HTMLSelectElement;
+    if (select && this.state) {
+      select.innerHTML = '';
+      const activeProfId = this.state.settings.selectedProfileId || this.state.settings.activeProfileId;
+      for (const p of this.state.profiles) {
+        const opt = document.createElement('option');
+        opt.value = p.id;
+        opt.textContent = p.name;
+        if (p.id === activeProfId) {
+          opt.selected = true;
+        }
+        select.appendChild(opt);
+      }
+    }
+
+    // Render Quick Action Templates Palette
+    this.renderQuickTemplates();
 
     // Render Cloud Auth state
     await this.renderCloudState();
@@ -369,6 +405,68 @@ class PopupController {
       if (btn) btn.disabled = false;
       this.renderShiftState();
     }
+  }
+
+  private renderQuickTemplates() {
+    const tplGrid = document.getElementById('popup-quick-templates');
+    if (!tplGrid || !this.state) return;
+
+    const activeProfId = this.state.settings.selectedProfileId || this.state.settings.activeProfileId || 'profile-1';
+    const tpls = (this.state.templates || []).filter(t => t.profileId === activeProfId && t.enabled !== false);
+    const displayTpls = tpls.slice(0, 4);
+
+    if (displayTpls.length === 0) {
+      tplGrid.innerHTML = `
+        <div style="color:var(--text-muted); font-size:11px; grid-column:span 2; text-align:center; padding:10px 0;">
+          В выбранном профиле нет шаблонов. Добавьте их в настройках.
+        </div>
+      `;
+      return;
+    }
+
+    tplGrid.innerHTML = displayTpls.map((t, idx) => {
+      const keyLabel = t.hotkey || `F${idx + 1}`;
+      return `
+        <div class="popup-tpl-card" data-text="${encodeURIComponent(t.text)}" title="Клик — вставить в чат или скопировать">
+          <div class="popup-tpl-top">
+            <span class="popup-tpl-name">${t.name}</span>
+            <span class="popup-tpl-key">${keyLabel}</span>
+          </div>
+          <div class="popup-tpl-snippet">${t.text}</div>
+        </div>
+      `;
+    }).join('');
+
+    tplGrid.querySelectorAll('.popup-tpl-card').forEach(card => {
+      card.addEventListener('click', async () => {
+        const encoded = card.getAttribute('data-text');
+        if (!encoded) return;
+        const text = decodeURIComponent(encoded);
+
+        // Try inserting into active FunPay tab
+        chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+          const tab = tabs[0];
+          if (tab?.id && tab.url?.includes('funpay.com')) {
+            chrome.tabs.sendMessage(tab.id, {
+              type: 'INSERT_MESSAGE',
+              payload: { text }
+            }).catch(() => {});
+          }
+        });
+
+        // Copy to clipboard as reliable fallback
+        try {
+          await navigator.clipboard.writeText(text);
+        } catch {}
+
+        const nameEl = card.querySelector('.popup-tpl-name');
+        if (nameEl) {
+          const prev = nameEl.textContent;
+          nameEl.textContent = 'Вставлено! ✓';
+          setTimeout(() => { nameEl.textContent = prev; }, 1200);
+        }
+      });
+    });
   }
 }
 
