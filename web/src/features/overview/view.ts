@@ -1,6 +1,6 @@
 import type { OverviewData } from '@/types/database';
 import { CURRENCIES, CURRENCY_SYMBOLS, formatCurrency } from './metrics';
-import { createButton, createNotice, createSkeleton, element, formatDate } from '@/components/ui';
+import { createButton, createNotice, createSkeleton, element, formatDate, icon, pluralize } from '@/components/ui';
 import { getErrorMessage } from '@/lib/errors';
 import { loadOverview } from './data';
 
@@ -23,17 +23,18 @@ export function renderOverview(container: HTMLElement, onRefresh: () => void): v
   }).catch(error => {
     content.replaceChildren(createNotice('error', `Не удалось загрузить обзор: ${getErrorMessage(error)}`));
     const retry = createButton('Повторить запрос', 'button button-secondary', 'refresh');
+    retry.style.justifySelf = 'start';
     retry.addEventListener('click', onRefresh);
     content.append(retry);
   });
 }
 
-function buildOverview(data: OverviewData): HTMLElement {
+export function buildOverview(data: OverviewData): HTMLElement {
   const stack = element('div', 'overview-layout');
   const kpis = element('div', 'kpi-grid');
   kpis.append(
-    createKpi('Участники', String(data.activeMembers), 'активных профилей', 'users', 'blue'),
-    createKpi('Активные смены', String(data.activeShifts), 'сейчас в работе', 'clock', 'green'),
+    createKpi('Участники', String(data.activeMembers), pluralize(data.activeMembers, 'активный профиль', 'активных профиля', 'активных профилей'), 'users', 'blue'),
+    createKpi('Активные смены', String(data.activeShifts), data.activeShifts === 0 ? 'нет смен в работе' : pluralize(data.activeShifts, 'смена в работе', 'смены в работе', 'смен в работе'), 'clock', 'green'),
     createKpi('Все заказы', data.totalOrders.toLocaleString('ru-RU'), `${data.closedOrders.toLocaleString('ru-RU')} закрыто`, 'orders', 'violet')
   );
 
@@ -71,7 +72,7 @@ function buildOverview(data: OverviewData): HTMLElement {
   const activity = element('section', 'panel activity-panel');
   const activityHeading = element('div', 'panel-heading');
   activityHeading.append(element('div', '', [element('h2', '', ['Последняя активность']), element('p', 'panel-description', ['Недавние события смен команды'])]));
-  activityHeading.append(element('span', 'subtle-count', [`${data.recentActivity.length} событий`]));
+  activityHeading.append(element('span', 'subtle-count', [pluralize(data.recentActivity.length, 'событие', 'события', 'событий')]));
   activity.append(activityHeading);
   if (data.recentActivity.length === 0) {
     activity.append(emptyState('Пока нет активности', 'Когда участники начнут смены, последние события появятся здесь.'));
@@ -95,7 +96,9 @@ function buildOverview(data: OverviewData): HTMLElement {
 function createKpi(label: string, value: string, detail: string, iconName: 'users' | 'clock' | 'orders', accent: string): HTMLElement {
   const card = element('article', 'panel kpi-card');
   const top = element('div', 'kpi-top');
-  top.append(element('span', 'kpi-label', [label]), element('span', `kpi-icon kpi-${accent}`, [iconName === 'users' ? '◉' : iconName === 'clock' ? '◷' : '▤']));
+  const iconSpan = element('span', `kpi-icon kpi-${accent}`);
+  iconSpan.append(icon(iconName));
+  top.append(element('span', 'kpi-label', [label]), iconSpan);
   card.append(top, element('strong', 'kpi-value tabular-nums', [value]), element('span', 'kpi-detail', [detail]));
   return card;
 }

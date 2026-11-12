@@ -75,8 +75,12 @@ export class OrdersPage {
     shell.content.append(filtersPanel.panel, dataPanel.panel);
     this.container.replaceChildren(shell.page);
 
-    void this.loadOptions();
-    void this.refresh();
+    void this.bootstrap();
+  }
+
+  private async bootstrap(): Promise<void> {
+    await this.loadOptions();
+    await this.refresh();
     this.subscribeRealtime();
   }
 
@@ -308,7 +312,9 @@ export class OrdersPage {
 
   private operatorLabel(operatorId: string | null): string {
     if (!operatorId) return 'Без оператора';
-    return this.profiles.find(profile => profile.user_id === operatorId)?.display_name ?? operatorId.slice(0, 8);
+    const profile = this.profiles.find(p => p.user_id === operatorId);
+    if (profile) return profile.display_name;
+    return operatorId.length > 12 ? operatorId.slice(0, 8) + '…' : operatorId;
   }
 
   private shopLabel(sellerAccountId: string): string {

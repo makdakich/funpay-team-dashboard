@@ -206,7 +206,7 @@ export class FinancePage {
         element('td', 'numeric-cell', [formatCurrency(current, currency)]),
         element('td', 'numeric-cell share-cell', [formatCurrency(analysis.share[currency], currency)]),
         element('td', 'numeric-cell', [formatCurrency(before, currency)]),
-        element('td', 'numeric-cell', [deltaLabel(current, before)])
+        deltaCell(current, before)
       );
       rows.push(row);
     }
@@ -225,14 +225,12 @@ export class FinancePage {
 
   private renderBreakdown(analysis: FinanceAnalysis): void {
     if (!this.breakdownHost) return;
-    const layout = element('div', 'finance-layout');
-    layout.append(
+    this.breakdownHost.replaceChildren(
       this.buildCurrencyTable(analysis),
       this.buildGroupPanel('Операторы', 'Доля считается только по закрытым заказам', analysis.byOperator, 'Оператор'),
       this.buildGroupPanel('Магазины', 'Оборот по аккаунтам продавца', analysis.byShop, 'Магазин'),
       this.buildChart(analysis)
     );
-    this.breakdownHost.replaceChildren(layout);
   }
 
   private buildCurrencyTable(analysis: FinanceAnalysis): HTMLElement {
@@ -343,6 +341,16 @@ function deltaLabel(current: number, before: number): string {
   if (before === 0) return current === 0 ? '—' : 'новый оборот';
   const delta = ((current - before) / before) * 100;
   return (delta > 0 ? '+' : '') + delta.toFixed(1) + '%';
+}
+
+function deltaCell(current: number, before: number): HTMLElement {
+  const label = deltaLabel(current, before);
+  let cls = 'numeric-cell';
+  if (label.startsWith('+')) cls += ' delta-positive';
+  else if (label.startsWith('-')) cls += ' delta-negative';
+  else if (label === 'новый оборот') cls += ' delta-new';
+  else cls += ' delta-neutral';
+  return element('td', cls, [label]);
 }
 
 function formatInputDate(date: Date): string {

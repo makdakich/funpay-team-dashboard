@@ -179,3 +179,14 @@ export function formatDuration(startTime: string, endTime: string | null): strin
 export function initialsOf(name: string): string {
   return name.trim().split(/\s+/).slice(0, 2).map(part => part[0]?.toUpperCase() ?? '').join('') || 'FP';
 }
+
+export function pluralize(count: number, one: string, few: string, many: string): string {
+  const abs = Math.abs(count);
+  const mod10 = abs % 10;
+  const mod100 = abs % 100;
+  if (mod100 >= 11 && mod100 <= 19) return `${count} ${many}`;
+  if (mod10 === 1) return `${count} ${one}`;
+  if (mod10 >= 2 && mod10 <= 4) return `${count} ${few}`;
+  return `${count} ${many}`;
+}
+

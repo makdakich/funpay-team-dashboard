@@ -14,7 +14,7 @@ export function renderLogin(root: HTMLElement, auth: AuthService): void {
   brand.append(brandMark, element('span', 'brand-wordmark', ['FUNPAY']), element('span', 'brand-chip', ['TEAM CLOUD']));
 
   const intro = element('div', 'login-intro');
-  intro.append(element('div', 'eyebrow', ['КОМАНДНЫЙ ПРОСТРАНСТВО']), element('h1', '', ['Войдите в рабочее пространство']), element('p', '', ['Мониторинг команды и смен в одном защищённом месте.']));
+  intro.append(element('div', 'eyebrow', ['КОМАНДНОЕ ПРОСТРАНСТВО']), element('h1', '', ['Войдите в рабочее пространство']), element('p', '', ['Мониторинг команды и смен в одном защищённом месте.']));
 
   const form = element('form', 'login-form');
   const emailLabel = element('label', 'field-label', ['Рабочая почта']);
@@ -35,6 +35,7 @@ export function renderLogin(root: HTMLElement, auth: AuthService): void {
   password.placeholder = 'Введите пароль';
   password.required = true;
   const reveal = createButton('Показать', 'password-toggle');
+  reveal.type = 'button';
   reveal.addEventListener('click', () => {
     const showing = password.type === 'text';
     password.type = showing ? 'password' : 'text';

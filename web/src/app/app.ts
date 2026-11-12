@@ -130,7 +130,7 @@ export class DashboardApp {
     const avatar = element('span', 'profile-avatar', [initials(displayName)]);
     const roleLabel = profile?.is_creator ? 'Создатель команды' : (role === 'owner' ? 'Руководитель' : 'Оператор');
     const userMeta = element('span', 'profile-meta', [element('strong', '', [displayName]), element('small', '', [roleLabel])]);
-    const logout = createButton('Выйти', 'icon-button logout-button', 'logout');
+    const logout = createButton('', 'icon-button logout-button', 'logout');
     logout.title = 'Выйти из аккаунта';
     logout.setAttribute('aria-label', 'Выйти из аккаунта');
     logout.addEventListener('click', () => void this.handleSignOut());
@@ -145,7 +145,8 @@ export class DashboardApp {
     const workspaceMain = element('div', 'workspace-main');
     const topbar = element('header', 'topbar');
     const topLeft = element('div', 'topbar-left');
-    this.mobileButton = createButton('Меню', 'icon-button mobile-menu-button');
+    this.mobileButton = createButton('', 'icon-button mobile-menu-button', 'grid');
+    this.mobileButton.title = 'Меню';
     this.mobileButton.setAttribute('aria-label', 'Открыть меню');
     this.mobileButton.addEventListener('click', () => this.openMobileSidebar());
     topLeft.append(this.mobileButton, element('div', 'breadcrumbs', [element('span', '', ['Workspace']), element('span', 'breadcrumb-separator', ['/']), element('strong', 'breadcrumb-current', [getRouteTitle(parseRoute(window.location.hash).route)])]));

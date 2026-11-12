@@ -287,7 +287,8 @@ export class ShiftHistoryPage {
     const rows = history.items.map(item => this.renderRow(item));
     return createTable(
       ['Оператор', 'Магазин', 'Начало', 'Окончание', 'Длительность', 'Статус', 'Заказы', 'Оборот (closed)', 'Доля 10%', ''],
-      rows
+      rows,
+      'table-wide'
     );
   }
 
