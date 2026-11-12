@@ -91,7 +91,8 @@ export class OrdersPage {
       this.profiles = profiles;
       this.shops = shops;
       if (!this.query.sellerAccountId && shops.length > 0) {
-        this.query.sellerAccountId = shops[0].seller_account_id;
+        const defaultStore = shops.find(s => s.seller_account_id === '4473774') ?? shops.find(s => s.is_active) ?? shops[0];
+        this.query.sellerAccountId = defaultStore.seller_account_id;
       }
       this.fillSelect('[data-role="operator-filter"]', [{ value: '', label: 'Все операторы' }]
         .concat([{ value: UNASSIGNED_OPERATOR, label: 'Без оператора' }])
