@@ -681,6 +681,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
                   }
                 }
                 combined.sort((a, b) => b.startTime - a.startTime);
+                await chrome.storage.local.set({ [STORAGE_KEYS.SHIFT_HISTORY]: combined });
                 sendResponse({ success: true, history: combined });
                 break;
               }
@@ -723,7 +724,8 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
                 const state = await loadState();
                 const cloudShifts = await client.fetchCloudShifts(250, {
                   localOrders: state.cache.orders || [],
-                  sellerSharePercent: state.settings.sellerSharePercent ?? 10
+                  sellerSharePercent: state.settings.sellerSharePercent ?? 10,
+                  currentUserId: userId ?? undefined
                 });
 
                 const currentLocal = await loadShiftHistory();
@@ -808,6 +810,25 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
           const state = await loadState();
           const orders = state.cache.orders || [];
           const percent = state.settings.sellerSharePercent ?? 10.0;
+
+          if (state.settings.cloudSyncEnabled) {
+            try {
+              const { client, userId } = await createCloudClient();
+              const cloudShifts = await client.fetchCloudShifts(250, {
+                localOrders: orders,
+                sellerSharePercent: percent,
+                currentUserId: userId ?? undefined
+              });
+              if (cloudShifts && cloudShifts.length > 0) {
+                await chrome.storage.local.set({ [STORAGE_KEYS.SHIFT_HISTORY]: cloudShifts });
+                sendResponse({ success: true, history: cloudShifts });
+                break;
+              }
+            } catch (cloudErr) {
+              console.warn('[Supabase] Failed to recalculate from cloud:', cloudErr);
+            }
+          }
+
           const history = await recalculateShifts(orders, percent);
           sendResponse({ success: true, history });
           break;

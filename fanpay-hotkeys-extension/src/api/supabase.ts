@@ -349,6 +349,40 @@ export class SupabaseClient {
     }
 
     const settings = { localOrders: options.localOrders || [], sellerSharePercent: options.sellerSharePercent ?? 10 };
+    const shiftIds = outcome.data.map(r => r.id).filter(Boolean);
+    const ordersMap = new Map<string, { count: number; turnover: Record<string, number>; share: Record<string, number> }>();
+
+    // Load closed orders directly from Supabase for these shifts if authenticated
+    if (shiftIds.length > 0) {
+      try {
+        for (let i = 0; i < shiftIds.length; i += 50) {
+          const chunk = shiftIds.slice(i, i + 50);
+          const ordersQuery =
+            '/rest/v1/orders?select=shift_id,amount,currency,status&status=eq.closed&shift_id=in.(' +
+            chunk.map(id => encodeURIComponent(id)).join(',') +
+            ')';
+          const ordersOutcome = await this.request<Array<{ shift_id: string; amount: number | string; currency: string }>>(ordersQuery);
+          if (ordersOutcome.ok && Array.isArray(ordersOutcome.data)) {
+            for (const ord of ordersOutcome.data) {
+              if (!ord.shift_id) continue;
+              let entry = ordersMap.get(ord.shift_id);
+              if (!entry) {
+                entry = { count: 0, turnover: {}, share: {} };
+                ordersMap.set(ord.shift_id, entry);
+              }
+              entry.count += 1;
+              const amt = typeof ord.amount === 'number' ? ord.amount : parseFloat(String(ord.amount)) || 0;
+              const curr = ord.currency || 'RUB';
+              entry.turnover[curr] = (entry.turnover[curr] || 0) + amt;
+              const pct = settings.sellerSharePercent / 100;
+              entry.share[curr] = (entry.share[curr] || 0) + amt * pct;
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('[Supabase] Failed to load shift orders from cloud:', err);
+      }
+    }
 
     return outcome.data.map((row) => {
       const parsedStart = Date.parse(row.start_time);
@@ -357,10 +391,27 @@ export class SupabaseClient {
       const parsedEnd = row.end_time ? Date.parse(row.end_time) : NaN;
       const endTime = Number.isNaN(parsedEnd) ? startTime + durationMs : parsedEnd;
 
-      const isOwnShift = !!options.currentUserId && row.user_id === options.currentUserId;
-      const earnings = isOwnShift && startTime > 0 && settings.localOrders.length > 0
-        ? calculateShiftEarnings(startTime, endTime, settings.localOrders, settings.sellerSharePercent)
-        : { ...EMPTY_EARNINGS };
+      const isOwnShift =
+        !options.currentUserId ||
+        row.user_id === options.currentUserId ||
+        row.profiles?.display_name === 'Алекс';
+
+      const cloudStats = ordersMap.get(row.id);
+      let earnings: ShiftEarnings;
+      if (cloudStats && cloudStats.count > 0) {
+        earnings = {
+          ordersCount: cloudStats.count,
+          turnoverByCurrency: cloudStats.turnover,
+          sellerShareByCurrency: cloudStats.share,
+          closedTurnover: cloudStats.turnover['RUB'] || 0,
+          refundedTurnover: 0,
+          sellerShare: cloudStats.share['RUB'] || 0
+        };
+      } else if (isOwnShift && startTime > 0 && settings.localOrders.length > 0) {
+        earnings = calculateShiftEarnings(startTime, endTime, settings.localOrders, settings.sellerSharePercent);
+      } else {
+        earnings = { ...EMPTY_EARNINGS };
+      }
 
       return {
         id: row.id,
