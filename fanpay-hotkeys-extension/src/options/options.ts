@@ -999,6 +999,20 @@ class OptionsController {
     document.getElementById('btn-import-historical-shifts')?.addEventListener('click', async () => {
       const btn = document.getElementById('btn-import-historical-shifts') as HTMLButtonElement | null;
       const resDiv = document.getElementById('historical-shifts-result');
+
+      if (!this.cloudAuth?.signedIn) {
+        const authBox = document.getElementById('banner-cloud-auth-box');
+        if (authBox) authBox.style.display = 'flex';
+        const passInp = document.getElementById('banner-cloud-password') as HTMLInputElement | null;
+        if (passInp) passInp.focus();
+        if (resDiv) {
+          resDiv.style.display = 'block';
+          resDiv.style.color = '#fbbf24';
+          resDiv.textContent = '⚠️ Введите пароль от kubinovkurtas@gmail.com и нажмите «Войти и связать с сайтом».';
+        }
+        return;
+      }
+
       if (btn) {
         btn.disabled = true;
         btn.textContent = '⏳ Перенос смен в Cloud...';
@@ -1036,6 +1050,60 @@ class OptionsController {
         if (btn) {
           btn.disabled = false;
           btn.textContent = 'Повторить перенос';
+        }
+      }
+    });
+
+    // Inline login in historical shifts banner
+    document.getElementById('btn-banner-cloud-signin')?.addEventListener('click', async () => {
+      const email = (document.getElementById('banner-cloud-email') as HTMLInputElement)?.value?.trim() || '';
+      const password = (document.getElementById('banner-cloud-password') as HTMLInputElement)?.value || '';
+      const btn = document.getElementById('btn-banner-cloud-signin') as HTMLButtonElement | null;
+      const resDiv = document.getElementById('historical-shifts-result');
+
+      if (!password) {
+        alert('Введите пароль от вашей учётной записи Создателя (kubinovkurtas@gmail.com)');
+        return;
+      }
+
+      if (btn) {
+        btn.disabled = true;
+        btn.textContent = 'Вход в облако...';
+      }
+      if (resDiv) resDiv.style.display = 'none';
+
+      try {
+        const signinRes = await chrome.runtime.sendMessage({
+          type: 'SIGN_IN_CLOUD',
+          payload: { email, password }
+        });
+
+        if (!signinRes?.success) {
+          if (resDiv) {
+            resDiv.style.display = 'block';
+            resDiv.style.color = '#f87171';
+            resDiv.textContent = `❌ Ошибка входа: ${signinRes?.error || 'Неверный email или пароль'}`;
+          }
+          return;
+        }
+
+        // Successfully signed in! Refresh state and immediately trigger transfer
+        await this.refreshState();
+        const importBtn = document.getElementById('btn-import-historical-shifts') as HTMLButtonElement | null;
+        if (importBtn) {
+          importBtn.style.display = 'inline-block';
+          importBtn.click();
+        }
+      } catch (err: unknown) {
+        if (resDiv) {
+          resDiv.style.display = 'block';
+          resDiv.style.color = '#f87171';
+          resDiv.textContent = `❌ Ошибка: ${err instanceof Error ? err.message : 'Не удалось связаться с облаком'}`;
+        }
+      } finally {
+        if (btn) {
+          btn.disabled = false;
+          btn.textContent = 'Войти и связать с сайтом';
         }
       }
     });
@@ -1128,6 +1196,8 @@ class OptionsController {
   private async checkHistoricalShiftsBanner() {
     const banner = document.getElementById('historical-shifts-banner');
     const countBadge = document.getElementById('historical-shifts-count-badge');
+    const authBox = document.getElementById('banner-cloud-auth-box');
+    const importBtn = document.getElementById('btn-import-historical-shifts');
     if (!banner) return;
 
     try {
@@ -1135,6 +1205,18 @@ class OptionsController {
       if (res?.success && typeof res.count === 'number' && res.count > 0) {
         banner.style.display = 'block';
         if (countBadge) countBadge.textContent = `${res.count} смен`;
+
+        if (this.cloudAuth?.signedIn) {
+          if (authBox) authBox.style.display = 'none';
+          if (importBtn) {
+            importBtn.style.display = 'inline-block';
+            importBtn.disabled = false;
+            importBtn.textContent = '🚀 Перенести историю в Cloud';
+          }
+        } else {
+          if (authBox) authBox.style.display = 'flex';
+          if (importBtn) importBtn.style.display = 'none';
+        }
       } else {
         banner.style.display = 'none';
       }

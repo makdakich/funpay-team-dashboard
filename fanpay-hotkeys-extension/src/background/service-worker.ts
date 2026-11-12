@@ -41,12 +41,12 @@ function toAuthState(session: CloudAuthSession | null): CloudAuthState {
   };
 }
 
-/** Resolve the seller account id: explicit setting first, otherwise the parsed FunPay account id. */
-function resolveSellerAccountId(state: Awaited<ReturnType<typeof loadState>>): string | null {
+/** Resolve the seller account id: explicit setting first, otherwise the parsed FunPay account id or default shop Hopeoflove. */
+function resolveSellerAccountId(state: Awaited<ReturnType<typeof loadState>>): string {
   const explicit = state.settings.sellerAccountId?.trim();
   if (explicit) return explicit;
   const parsed = state.cache?.accountInfo?.userId;
-  return parsed ? String(parsed) : null;
+  return parsed ? String(parsed) : '4473774';
 }
 
 /** Build a Supabase client bound to the current settings and the freshest operator session. */
@@ -162,10 +162,20 @@ chrome.alarms?.onAlarm.addListener(async (alarm) => {
 
     const shiftState = await loadShiftState();
     const stored = await chrome.storage.local.get(['fphk_current_cloud_shift_id']);
-    const cloudShiftId = (stored.fphk_current_cloud_shift_id as string | undefined) || null;
+    let cloudShiftId = (stored.fphk_current_cloud_shift_id as string | undefined) || null;
     const sellerAccountId = resolveSellerAccountId(state);
 
-    if (shiftState.shiftActive && cloudShiftId) {
+    if (shiftState.shiftActive) {
+      if (!cloudShiftId) {
+        cloudShiftId = generateUuid();
+        await chrome.storage.local.set({ fphk_current_cloud_shift_id: cloudShiftId });
+        await client.startShift({
+          shiftId: cloudShiftId,
+          userId,
+          sellerAccountId,
+          startTimeMs: shiftState.shiftStartTime || Date.now()
+        });
+      }
       await client.upsertOperatorStatus({
         userId,
         status: 'on_shift',
@@ -665,6 +675,48 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
               message.payload?.password || ''
             );
             await saveAuthSession(session);
+
+            // Auto-sync active local shift to cloud immediately if operator is currently on shift
+            try {
+              const shiftState = await loadShiftState();
+              const { client } = await createCloudClient();
+              const sellerAccountId = resolveSellerAccountId(state);
+
+              if (shiftState.shiftActive && session.userId) {
+                const stored = await chrome.storage.local.get(['fphk_current_cloud_shift_id']);
+                let cloudShiftId = (stored.fphk_current_cloud_shift_id as string | undefined) || null;
+
+                if (!cloudShiftId) {
+                  cloudShiftId = generateUuid();
+                  await chrome.storage.local.set({ fphk_current_cloud_shift_id: cloudShiftId });
+                  await client.startShift({
+                    shiftId: cloudShiftId,
+                    userId: session.userId,
+                    sellerAccountId,
+                    startTimeMs: shiftState.shiftStartTime || Date.now()
+                  });
+                }
+
+                await client.upsertOperatorStatus({
+                  userId: session.userId,
+                  status: 'on_shift',
+                  activeShiftId: cloudShiftId,
+                  sellerAccountId,
+                  appVersion: getAppVersion()
+                });
+              } else if (session.userId) {
+                await client.upsertOperatorStatus({
+                  userId: session.userId,
+                  status: 'online',
+                  activeShiftId: null,
+                  sellerAccountId: null,
+                  appVersion: getAppVersion()
+                });
+              }
+            } catch (presenceErr) {
+              console.warn('[Supabase] presence sync on sign-in warning:', presenceErr);
+            }
+
             sendResponse({ success: true, auth: toAuthState(session) });
           } catch (err) {
             sendResponse({ success: false, error: err instanceof Error ? err.message : 'Не удалось войти' });

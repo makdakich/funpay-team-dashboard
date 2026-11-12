@@ -460,6 +460,15 @@
               </button>
             </div>
           </div>
+
+          <!-- Inline Cloud Login Form when not logged in -->
+          <div id="banner-cloud-auth-box" style="margin-top: 14px; padding-top: 14px; border-top: 1px solid rgba(56, 189, 248, 0.2); display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+            <span style="font-size: 12px; font-weight: 600; color: #f1f5f9;">🔑 Вход в аккаунт Создателя:</span>
+            <input type="email" id="banner-cloud-email" class="obsidian-input" value="kubinovkurtas@gmail.com" style="width: 210px; padding: 6px 10px; font-size: 12px;" placeholder="Email Создателя">
+            <input type="password" id="banner-cloud-password" class="obsidian-input" style="width: 170px; padding: 6px 10px; font-size: 12px;" placeholder="Пароль от сайта">
+            <button id="btn-banner-cloud-signin" class="btn btn-primary-accent" style="padding: 6px 14px; font-size: 12px; font-weight: 600; background: #10B981; border-color: #34D399;">Войти и связать с сайтом</button>
+          </div>
+
           <div id="historical-shifts-result" style="margin-top: 12px; font-size: 13px; display: none;"></div>
         </div>
 
@@ -730,7 +739,7 @@
           <div class="setting-field">
             <label class="field-label" for="cloud-email-input">Вход в облако команды</label>
             <div class="input-with-action">
-              <input type="email" id="cloud-email-input" class="obsidian-input" placeholder="operator@example.com" autocomplete="off">
+              <input type="email" id="cloud-email-input" class="obsidian-input" value="kubinovkurtas@gmail.com" placeholder="operator@example.com" autocomplete="off">
               <input type="password" id="cloud-password-input" class="obsidian-input" placeholder="Пароль" autocomplete="off">
               <button id="btn-cloud-signin" class="btn btn-primary-accent">Войти</button>
               <button id="btn-cloud-signout" class="btn btn-secondary-subtle">Выйти</button>
