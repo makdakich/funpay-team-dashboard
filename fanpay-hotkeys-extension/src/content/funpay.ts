@@ -63,13 +63,17 @@ class FunPayContentController {
 
   private applyState(state: ExtensionState) {
     this.state = state;
-    this.hotkeys.updateData(state.templates, state.settings);
-    this.panel.init(
-      state.profiles,
-      state.templates,
-      state.settings,
-      (profileId) => this.handleProfileChange(profileId)
-    );
+    if (state.settings?.hotkeysEnabled) {
+      this.hotkeys.updateData(state.templates, state.settings);
+    }
+    if (state.settings?.panelEnabled) {
+      this.panel.init(
+        state.profiles,
+        state.templates,
+        state.settings,
+        (profileId) => this.handleProfileChange(profileId)
+      );
+    }
     if (this.shiftState) {
       this.shiftWidget.updateState(this.shiftState, state);
     }

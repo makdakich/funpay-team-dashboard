@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>FunPay Hotkeys v2.1.0</title>
+  <title>FunPay Team Cockpit v2.4</title>
   <link rel="stylesheet" href="popup.css">
 </head>
 <body class="theme-obsidian-popup">
@@ -12,15 +12,15 @@
     <header class="popup-topbar">
       <div class="brand-group">
         <span class="brand-bolt">⚡</span>
-        <span class="brand-title">FUNPAY HUD</span>
-        <span class="brand-version">v2.1.0</span>
+        <span class="brand-title">FUNPAY TEAM</span>
+        <span class="brand-version">v2.4</span>
       </div>
       <div class="topbar-actions">
-        <div id="popup-status-badge" class="connection-status-pill connected" title="Статус FunPay">
+        <div id="popup-cloud-badge" class="connection-status-pill" title="Подключение к облаку Supabase">
           <span class="status-dot"></span>
-          <span id="popup-status-text">Онлайн</span>
+          <span id="popup-cloud-text">Облако...</span>
         </div>
-        <button id="btn-options" class="icon-btn" title="Открыть настройки & Дашборд">
+        <button id="btn-options" class="icon-btn" title="Настройки расширения">
           <svg viewBox="0 0 20 20" fill="currentColor" width="14" height="14">
             <path fill-rule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clip-rule="evenodd" />
           </svg>
@@ -35,15 +35,12 @@
           <span class="cockpit-tag" id="shift-badge">СМЕНА НЕ АКТИВНА</span>
           <button id="btn-popup-shift-collapse" class="btn-cockpit-minimize" title="Свернуть (скрыть имя, время и выручку)" style="display: none;">—</button>
         </div>
-        <div class="profile-pill-wrap">
-          <label for="profile-select" class="sr-only">Профиль</label>
-          <select id="profile-select" class="profile-mini-select" title="Активный игровой профиль">
-            <!-- Populated dynamically -->
-          </select>
+        <div class="shop-badge-wrap">
+          <span class="shop-pill" id="shop-name-badge">🏪 Hopeoflove</span>
         </div>
       </div>
 
-      <!-- Collapsed stealth state: No name, no money, no time -->
+      <!-- Collapsed stealth state -->
       <div id="shift-collapsed-box" class="shift-collapsed-box" style="display: none;" title="Смена активна • Нажмите, чтобы развернуть">
         <div class="collapsed-left">
           <span class="status-pulse-dot"></span>
@@ -61,18 +58,31 @@
         </div>
       </div>
 
-      <!-- Active state: Chronometer display -->
+      <!-- Active state: Chronometer display & Live Metrics -->
       <div id="shift-active-box" class="shift-active-box" style="display: none;">
-        <div class="active-op-badge" id="shift-active-op-badge">👤 Оператор 1</div>
+        <div class="active-op-badge" id="shift-active-op-badge">👤 Алекс</div>
         <div class="digital-timer tabular-nums" id="shift-timer">00:00:00</div>
-        <div class="live-earnings-pill tabular-nums" id="shift-live-earnings">0 заказов • 0 ₽</div>
+        
+        <div class="live-earnings-grid">
+          <div class="metric-cell">
+            <span class="metric-lbl">Заказов</span>
+            <span class="metric-num tabular-nums" id="shift-orders-count">0</span>
+          </div>
+          <div class="metric-cell">
+            <span class="metric-lbl">Выручка</span>
+            <span class="metric-num tabular-nums" id="shift-live-turnover">0 ₽</span>
+          </div>
+          <div class="metric-cell highlight">
+            <span class="metric-lbl">Доля (10%)</span>
+            <span class="metric-num tabular-nums" id="shift-live-share">0 ₽</span>
+          </div>
+        </div>
+
         <div class="shift-started-at" id="shift-start-time">Начало: --:--:--</div>
       </div>
 
       <!-- Previous shift summary (when idle) -->
-      <div class="previous-shift-pill" id="shift-completed-summary" style="display: none;">
-        <!-- Filled on stop -->
-      </div>
+      <div class="previous-shift-pill" id="shift-completed-summary" style="display: none;"></div>
 
       <!-- Shift Action Button -->
       <div class="shift-btn-row" id="shift-btn-row">
@@ -80,44 +90,60 @@
           <span class="btn-symbol">▶</span>
           <span id="shift-btn-text">Начать смену</span>
         </button>
-        <button id="btn-open-shift-history" class="btn-history-icon" title="Открыть историю смен">
+        <button id="btn-open-shift-history" class="btn-history-icon" title="Открыть журнал смен">
           ⏱️
         </button>
       </div>
     </section>
 
-    <!-- Quick Action Templates Palette -->
-    <section class="quick-templates-section">
-      <div class="section-label-row">
-        <span class="section-micro-label">БЫСТРЫЕ ШАБЛОНЫ (ЧАТ FUNPAY)</span>
-        <span id="hotkeys-status-badge" class="hotkey-indicator on">ХОТКЕИ ВКЛ</span>
+    <!-- Store & Sync Status Section -->
+    <section class="store-sync-card">
+      <div class="store-card-header">
+        <div class="store-title-group">
+          <span class="store-dot"></span>
+          <span class="store-name" id="card-shop-name">Hopeoflove</span>
+          <span class="store-id" id="card-shop-id">#4473774</span>
+        </div>
+        <button id="btn-sync" class="btn-refresh-icon" title="Синхронизировать данные с FunPay и Supabase">
+          <span class="icon">🔄</span>
+        </button>
       </div>
-      <div class="quick-templates-grid" id="popup-quick-templates">
-        <!-- Rendered dynamically -->
+      <div class="store-stats-grid">
+        <div class="store-stat-item">
+          <span class="store-stat-lbl">Баланс FunPay:</span>
+          <span class="store-stat-val tabular-nums" id="balance-val">0 ₽</span>
+        </div>
+        <div class="store-stat-item">
+          <span class="store-stat-lbl">Заказы в базе:</span>
+          <span class="store-stat-val tabular-nums" id="sync-orders-count">0 зак.</span>
+        </div>
       </div>
     </section>
 
-    <!-- FunPay Notice if not on FunPay tab -->
-    <div id="funpay-tab-notice" class="funpay-context-notice" style="display: none;">
-      <span class="notice-spark">ℹ️</span>
-      <span>Откройте страницу FunPay для работы клавиш F1–F8 в чате.</span>
-    </div>
+    <!-- Primary Web Dashboard Hero Section -->
+    <section class="dashboard-launch-section">
+      <button class="btn-launch-web-dashboard" id="btn-web-dashboard" title="Открыть FunPay Team Dashboard на сайте">
+        <div class="launch-inner">
+          <span class="launch-icon">🌐</span>
+          <div class="launch-text-group">
+            <span class="launch-title">Team Dashboard</span>
+            <span class="launch-subtitle">Командный учёт, аналитика и смены</span>
+          </div>
+          <span class="launch-arrow">↗</span>
+        </div>
+      </button>
+    </section>
 
     <!-- Bottom Dock Bar -->
     <footer class="popup-bottom-dock">
-      <div class="dock-balance-group">
-        <span class="dock-label">Баланс:</span>
-        <span class="dock-balance-val tabular-nums" id="balance-val">0 ₽</span>
+      <div class="dock-quick-links">
+        <button id="btn-nav-shifts" class="dock-link-btn" title="Журнал смен">⏱️ Смены</button>
+        <button id="btn-nav-orders" class="dock-link-btn" title="Список заказов">📦 Заказы</button>
+        <button id="btn-nav-cloud" class="dock-link-btn" title="Настройки командного облака">☁️ Облако</button>
       </div>
       <div class="dock-actions">
-        <button id="btn-sync" class="dock-btn" title="Синхронизировать данные">
-          <span class="icon">🔄</span>
-        </button>
-        <button id="btn-stats" class="dock-btn" title="Открыть настройки расширения">
+        <button id="btn-stats" class="dock-btn" title="Все настройки">
           ⚙️
-        </button>
-        <button id="btn-web-dashboard" class="dock-btn-primary" title="Открыть FunPay Team Dashboard на сайте">
-          🌐 Дашборд
         </button>
       </div>
     </footer>

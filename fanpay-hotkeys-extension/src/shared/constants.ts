@@ -170,9 +170,9 @@ Roblox → ⚙️ Settings → Privacy & content restrictions → Visibility & p
 
 export const DEFAULT_SETTINGS: AppSettings = {
   selectedProfileId: 'profile-1',
-  hotkeysEnabled: true,
-  panelEnabled: true,
-  panelVisible: true,
+  hotkeysEnabled: false,
+  panelEnabled: false,
+  panelVisible: false,
   panelDocked: false,
   panelPosition: {
     top: 140,
@@ -183,8 +183,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   sellerSharePercent: 10.0,
   autoSyncIntervalMinutes: 15,
   goldenKey: '',
-  operatorsList: ['Оператор 1'],
-  lastOperator: 'Оператор 1',
+  operatorsList: ['Алекс'],
+  lastOperator: 'Алекс',
   shiftOverrunAlertHours: 8,
   shiftWidgetVisible: true,
   shiftWidgetPosition: {

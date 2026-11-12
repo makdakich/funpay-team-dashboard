@@ -88,38 +88,25 @@
           <span class="nav-text">CRM Клиенты</span>
         </button>
 
-        <div class="nav-group-label" style="margin-top: 16px;">ИНСТРУМЕНТЫ</div>
-        <button class="nav-item" data-tab="templates">
-          <svg class="nav-svg" viewBox="0 0 20 20" fill="currentColor">
-            <path fill-rule="evenodd" d="M18 10c0 3.866-3.582 7-8 7a8.841 8.841 0 01-4.083-.98L2 17l1.338-3.123C2.493 12.767 2 11.434 2 10c0-3.866 3.582-7 8-7s8 3.134 8 7zM7 9H5v2h2V9zm8 0h-2v2h2V9zM9 9h2v2H9V9z" clip-rule="evenodd" />
-          </svg>
-          <span class="nav-text">Шаблоны</span>
-        </button>
-        <button class="nav-item" data-tab="hotkeys">
-          <svg class="nav-svg" viewBox="0 0 20 20" fill="currentColor">
-            <path fill-rule="evenodd" d="M3 5a2 2 0 012-2h10a2 2 0 012 2v10a2 2 0 01-2 2H5a2 2 0 01-2-2V5zm3 1h2v2H6V6zm4 0h2v2h-2V6zm4 0h2v2h-2V6zm-8 4h2v2H6v-2zm4 0h2v2h-2v-2zm4 0h2v2h-2v-2zm-8 4h8v2H6v-2z" clip-rule="evenodd" />
-          </svg>
-          <span class="nav-text">Хоткеи</span>
-        </button>
-        <button class="nav-item" data-tab="profiles">
-          <svg class="nav-svg" viewBox="0 0 20 20" fill="currentColor">
-            <path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v3h8v-3zM6 8a2 2 0 11-4 0 2 2 0 014 0zM16 18v-3a5.972 5.972 0 00-.75-2.906A3.005 3.005 0 0119 15v3h-3zM4.75 12.094A5.973 5.973 0 004 15v3H1v-3a3 3 0 013.75-2.906z" />
-          </svg>
-          <span class="nav-text">Профили</span>
-        </button>
+        <!-- Legacy Hotkeys & Templates hidden per v2.4 Team Dashboard mode -->
+        <div style="display: none;">
+          <button class="nav-item" data-tab="templates"></button>
+          <button class="nav-item" data-tab="hotkeys"></button>
+          <button class="nav-item" data-tab="profiles"></button>
+        </div>
 
-        <div class="nav-group-label" style="margin-top: 16px;">НАСТРОЙКИ</div>
+        <div class="nav-group-label" style="margin-top: 16px;">КОМАНДА & ОБЛАКО</div>
         <button class="nav-item" data-tab="api">
           <svg class="nav-svg" viewBox="0 0 20 20" fill="currentColor">
-            <path fill-rule="evenodd" d="M18 8a6 6 0 01-7.743 5.743L10 14l-1 1-1 1H6v2H2v-4l4.257-4.257A6 6 0 1118 8zm-6-4a1 1 0 100 2 2 2 0 012 2 1 1 0 102 0 4 4 0 00-4-4z" clip-rule="evenodd" />
+            <path d="M5.5 16a3.5 3.5 0 01-.369-6.98 4 4 0 117.753-1.977A4.5 4.5 0 1113.5 16h-8z" />
           </svg>
-          <span class="nav-text">FunPay API</span>
+          <span class="nav-text">Облако Supabase</span>
         </button>
         <button class="nav-item" data-tab="general">
           <svg class="nav-svg" viewBox="0 0 20 20" fill="currentColor">
             <path fill-rule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clip-rule="evenodd" />
           </svg>
-          <span class="nav-text">Общие</span>
+          <span class="nav-text">Параметры смен</span>
         </button>
         <button class="nav-item" data-tab="backup">
           <svg class="nav-svg" viewBox="0 0 20 20" fill="currentColor">
@@ -733,32 +720,15 @@
       <section id="tab-api" class="tab-pane">
         <div class="section-action-header">
           <div>
-            <h1 class="page-headline">FunPay API</h1>
-            <p class="page-subline">Настройка локального подключения через официальный сессионный токен golden_key</p>
-          </div>
-        </div>
-
-        <div class="obsidian-card settings-card">
-          <div class="setting-field">
-            <label for="golden-key-input" class="field-label">Сессионный токен FunPay (golden_key)</label>
-            <div class="input-with-action">
-              <input type="password" id="golden-key-input" class="obsidian-input" placeholder="Введите ваш golden_key из cookies funpay.com...">
-              <button id="btn-save-key" class="btn btn-primary-accent">Сохранить</button>
-              <button id="btn-test-key" class="btn btn-secondary-subtle">Проверить</button>
-            </div>
-            <p class="field-hint">Токен сохраняется локально в зашифрованном хранилище браузера и никогда не передаётся на сторонние серверы.</p>
-          </div>
-
-          <div class="key-status-box" id="key-status-indicator">
-            <span class="status-dot-lg" id="key-status-dot"></span>
-            <span id="key-status-text">Проверка токена...</span>
+            <h1 class="page-headline">Командное облако Supabase & API</h1>
+            <p class="page-subline">Подключение к облачной базе команды, авторизация оператора и синхронизация данных</p>
           </div>
         </div>
 
         <!-- ============ TEAM CLOUD (Supabase v2.4) ============ -->
-        <div class="obsidian-card settings-card" style="margin-top: 14px;">
+        <div class="obsidian-card settings-card">
           <div class="setting-field">
-            <label class="field-label" for="cloud-email-input">Вход оператора в облако команды</label>
+            <label class="field-label" for="cloud-email-input">Вход в облако команды</label>
             <div class="input-with-action">
               <input type="email" id="cloud-email-input" class="obsidian-input" placeholder="operator@example.com" autocomplete="off">
               <input type="password" id="cloud-password-input" class="obsidian-input" placeholder="Пароль" autocomplete="off">
@@ -771,19 +741,37 @@
           <div class="setting-field">
             <label class="field-label" for="cloud-seller-input">ID магазина продавца (seller_account_id)</label>
             <div class="input-with-action">
-              <input type="text" id="cloud-seller-input" class="obsidian-input" placeholder="1084291">
+              <input type="text" id="cloud-seller-input" class="obsidian-input" placeholder="4473774">
               <button id="btn-cloud-save-seller" class="btn btn-secondary-subtle">Сохранить</button>
               <button id="btn-cloud-load-shops" class="btn btn-secondary-subtle">Магазины из облака</button>
             </div>
-            <p class="field-hint">Смены и заказы принимаются только на магазинах, добавленных владельцем в таблицу team_seller_accounts.</p>
+            <p class="field-hint">Магазин: <strong>Hopeoflove (4473774)</strong>. Смены и заказы фиксируются для этого аккаунта в облаке.</p>
           </div>
 
           <div class="setting-field">
-            <label class="field-label">Синхронизация архива заказов</label>
+            <label class="field-label">Синхронизация архива заказов с облаком</label>
             <div class="input-with-action">
               <button id="btn-cloud-push-orders" class="btn btn-primary-accent">Отправить заказы в облако</button>
             </div>
             <p class="field-hint" id="cloud-sync-result">Локальный архив заказов отправляется пакетами по 50 через RPC sync_orders_batch.</p>
+          </div>
+        </div>
+
+        <!-- ============ FUNPAY LOCAL SESSION ============ -->
+        <div class="obsidian-card settings-card" style="margin-top: 14px;">
+          <div class="setting-field">
+            <label for="golden-key-input" class="field-label">Сессионный токен FunPay (golden_key)</label>
+            <div class="input-with-action">
+              <input type="password" id="golden-key-input" class="obsidian-input" placeholder="Введите ваш golden_key из cookies funpay.com...">
+              <button id="btn-save-key" class="btn btn-primary-accent">Сохранить</button>
+              <button id="btn-test-key" class="btn btn-secondary-subtle">Проверить</button>
+            </div>
+            <p class="field-hint">Токен сохраняется локально в зашифрованном хранилище браузера и используется для автоматического получения баланса и истории заказов.</p>
+          </div>
+
+          <div class="key-status-box" id="key-status-indicator">
+            <span class="status-dot-lg" id="key-status-dot"></span>
+            <span id="key-status-text">Проверка токена...</span>
           </div>
         </div>
       </section>

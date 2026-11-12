@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "FunPay Hotkeys & Assistant",
+  "name": "FunPay Team Dashboard & Shift Tracker",
   "version": "2.1.0",
-  "description": "Помощник для продавцов FunPay: горячие клавиши, шаблоны ответов, быстрая панель в чате и раздельная статистика продаж.",
+  "description": "Командный трекер смен, синхронизация заказов с Supabase и интеграция с FunPay Team Dashboard.",
   "permissions": [
     "storage",
     "unlimitedStorage",

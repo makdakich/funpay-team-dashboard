@@ -6,7 +6,6 @@ class PopupController {
   private state: ExtensionState | null = null;
   private shiftState: ShiftState = { shiftActive: false, shiftStartTime: null };
   private shiftTimerInterval: number | null = null;
-  private lastShiftCompleted = false;
   private lastCompletedShift: CompletedShift | null = null;
   private isShiftCollapsed = false;
 
@@ -14,61 +13,60 @@ class PopupController {
     this.bindEvents();
     await this.loadAndRenderState();
     await this.loadAndRenderShift();
-    await this.checkCurrentTab();
   }
 
   private bindEvents() {
-    // Profile select change
-    const profileSelect = document.getElementById('profile-select') as HTMLSelectElement;
-    profileSelect?.addEventListener('change', async (e) => {
-      const profileId = (e.target as HTMLSelectElement).value;
-      await chrome.runtime.sendMessage({
-        type: 'SET_SELECTED_PROFILE',
-        payload: { profileId }
-      });
-      await this.loadAndRenderState();
-    });
-
     // Sync button
     const btnSync = document.getElementById('btn-sync');
     btnSync?.addEventListener('click', async () => {
       this.setSyncingState(true);
       try {
         const res = await chrome.runtime.sendMessage({ type: 'SYNC_DATA' });
-        if (res.success) {
+        if (res && res.success) {
           await this.loadAndRenderState();
         } else {
-          this.showErrorStatus(res.error || 'Ошибка синхронизации');
+          console.warn('Sync warning:', res?.error);
         }
       } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : 'Ошибка связи с фоновым сервисом';
-        this.showErrorStatus(msg);
+        console.warn('Sync connection error:', err);
       } finally {
         this.setSyncingState(false);
       }
     });
 
-    // Options button
-    const btnOptions = document.getElementById('btn-options');
-    btnOptions?.addEventListener('click', () => {
+    // Options button (gear icon)
+    document.getElementById('btn-options')?.addEventListener('click', () => {
       chrome.runtime.openOptionsPage();
     });
 
-    // Stats / Local options button
-    const btnStats = document.getElementById('btn-stats');
-    btnStats?.addEventListener('click', () => {
-      chrome.tabs.create({ url: chrome.runtime.getURL('options/options.html#dashboard') });
+    // Stats / Settings button in dock
+    document.getElementById('btn-stats')?.addEventListener('click', () => {
+      chrome.tabs.create({ url: chrome.runtime.getURL('options/options.html#general') });
     });
 
     // Web Dashboard (Site) button
-    const btnWebDashboard = document.getElementById('btn-web-dashboard');
-    btnWebDashboard?.addEventListener('click', () => {
+    document.getElementById('btn-web-dashboard')?.addEventListener('click', () => {
       chrome.tabs.create({ url: 'https://makdakich.github.io/funpay-team-dashboard/' });
     });
 
+    // Navigation dock buttons
+    document.getElementById('btn-nav-shifts')?.addEventListener('click', () => {
+      chrome.tabs.create({ url: chrome.runtime.getURL('options/options.html#shifts') });
+    });
+
+    document.getElementById('btn-nav-orders')?.addEventListener('click', () => {
+      chrome.tabs.create({ url: chrome.runtime.getURL('options/options.html#orders') });
+    });
+
+    const openCloudSettings = () => {
+      chrome.tabs.create({ url: chrome.runtime.getURL('options/options.html#api') });
+    };
+
+    document.getElementById('btn-nav-cloud')?.addEventListener('click', openCloudSettings);
+    document.getElementById('popup-cloud-badge')?.addEventListener('click', openCloudSettings);
+
     // Shift toggle button
-    const btnShift = document.getElementById('btn-toggle-shift');
-    btnShift?.addEventListener('click', async () => {
+    document.getElementById('btn-toggle-shift')?.addEventListener('click', async () => {
       await this.handleToggleShift();
     });
 
@@ -104,24 +102,13 @@ class PopupController {
   }
 
   private async loadAndRenderState() {
-    const res = await chrome.runtime.sendMessage({ type: 'GET_STATE' });
-    if (!res || !res.state) return;
-    this.state = res.state;
-
-    // Render Profiles Dropdown
-    const select = document.getElementById('profile-select') as HTMLSelectElement;
-    if (select && this.state) {
-      select.innerHTML = '';
-      const activeProfId = this.state.settings.selectedProfileId || this.state.settings.activeProfileId;
-      for (const p of this.state.profiles) {
-        const opt = document.createElement('option');
-        opt.value = p.id;
-        opt.textContent = p.name;
-        if (p.id === activeProfId) {
-          opt.selected = true;
-        }
-        select.appendChild(opt);
+    try {
+      const res = await chrome.runtime.sendMessage({ type: 'GET_STATE' });
+      if (res?.state) {
+        this.state = res.state;
       }
+    } catch {
+      // background waking up
     }
 
     // Operator suggestions & initial input
@@ -133,101 +120,62 @@ class PopupController {
     }
     const opInput = document.getElementById('shift-operator-input') as HTMLInputElement | null;
     if (opInput && !opInput.value) {
-      opInput.value = this.shiftState.currentOperator || this.state?.settings?.lastOperator || 'Оператор 1';
+      opInput.value = this.shiftState.currentOperator || this.state?.settings?.lastOperator || 'Алекс';
     }
 
-    // Hotkeys badge
-    const badge = document.getElementById('hotkeys-status-badge');
-    if (badge && this.state) {
-      if (this.state.settings.hotkeysEnabled) {
-        badge.className = 'hotkey-indicator on';
-        badge.textContent = 'ХОТКЕИ ВКЛ';
-      } else {
-        badge.className = 'hotkey-indicator';
-        badge.textContent = 'ХОТКЕИ ВЫКЛ';
-      }
-    }
+    // Render Cloud Auth state
+    await this.renderCloudState();
 
     // Account & Balance Status
-    const statusPill = document.getElementById('popup-status-badge');
-    const statusText = document.getElementById('popup-status-text');
     const balanceVal = document.getElementById('balance-val');
+    const syncOrdersCount = document.getElementById('sync-orders-count');
+    const shopBadge = document.getElementById('shop-name-badge');
+    const cardShopName = document.getElementById('card-shop-name');
+    const cardShopId = document.getElementById('card-shop-id');
+
+    const ordersCount = this.state?.cache?.orders?.length || 0;
+    if (syncOrdersCount) {
+      syncOrdersCount.textContent = `${ordersCount} зак.`;
+    }
 
     if (this.state?.cache.accountInfo) {
       const acc = this.state.cache.accountInfo;
-      if (statusPill) statusPill.className = 'connection-status-pill connected';
-      if (statusText) statusText.textContent = acc.username;
       if (balanceVal) balanceVal.textContent = formatMoney(acc.totalBalance, acc.currency);
-    } else if (this.state?.cache.error) {
-      if (statusPill) statusPill.className = 'connection-status-pill';
-      if (statusText) statusText.textContent = 'Ошибка';
-      if (balanceVal) balanceVal.textContent = '0 ₽';
+      const name = acc.username || 'Hopeoflove';
+      if (shopBadge) shopBadge.textContent = `🏪 ${name}`;
+      if (cardShopName) cardShopName.textContent = name;
+      if (cardShopId) cardShopId.textContent = acc.userId ? `#${acc.userId}` : '#4473774';
     } else {
-      if (statusPill) statusPill.className = 'connection-status-pill';
-      if (statusText) statusText.textContent = 'Офлайн';
       if (balanceVal) balanceVal.textContent = '0 ₽';
+      if (shopBadge) shopBadge.textContent = '🏪 Hopeoflove';
+      if (cardShopName) cardShopName.textContent = 'Hopeoflove';
+      if (cardShopId) cardShopId.textContent = '#4473774';
     }
-
-    // Render Quick Action Templates Palette
-    this.renderQuickTemplates();
   }
 
-  private renderQuickTemplates() {
-    const tplGrid = document.getElementById('popup-quick-templates');
-    if (!tplGrid || !this.state) return;
+  private async renderCloudState() {
+    const cloudBadge = document.getElementById('popup-cloud-badge');
+    const cloudText = document.getElementById('popup-cloud-text');
+    if (!cloudBadge || !cloudText) return;
 
-    const activeProfId = this.state.settings.selectedProfileId || this.state.settings.activeProfileId || 'default';
-    const tpls = this.state.templates.filter(t => t.profileId === activeProfId);
-    const displayTpls = tpls.slice(0, 4);
+    try {
+      const authRes = await chrome.runtime.sendMessage({ type: 'GET_CLOUD_AUTH_STATE' });
+      const auth = authRes?.auth;
 
-    if (displayTpls.length === 0) {
-      tplGrid.innerHTML = `
-        <div style="color:var(--text-muted); font-size:11px; grid-column:span 2; text-align:center; padding:12px 0;">
-          В профиле нет шаблонов. Добавьте их в Дашборде.
-        </div>
-      `;
-      return;
-    }
-
-    tplGrid.innerHTML = displayTpls.map((t, idx) => {
-      const keyLabel = t.key || `F${idx + 1}`;
-      return `
-        <div class="popup-tpl-card" data-text="${encodeURIComponent(t.text)}" title="Нажмите, чтобы скопировать шаблон">
-          <div class="popup-tpl-top">
-            <span class="popup-tpl-name">${t.name}</span>
-            <span class="popup-tpl-key">${keyLabel}</span>
-          </div>
-          <div class="popup-tpl-snippet">${t.text}</div>
-        </div>
-      `;
-    }).join('');
-
-    tplGrid.querySelectorAll('.popup-tpl-card').forEach(card => {
-      card.addEventListener('click', () => {
-        const encoded = card.getAttribute('data-text');
-        if (encoded) {
-          const text = decodeURIComponent(encoded);
-          navigator.clipboard.writeText(text);
-          const nameEl = card.querySelector('.popup-tpl-name');
-          if (nameEl) {
-            const prev = nameEl.textContent;
-            nameEl.textContent = 'Скопировано! ✓';
-            setTimeout(() => { nameEl.textContent = prev; }, 1200);
-          }
-        }
-      });
-    });
-  }
-
-  private async checkCurrentTab() {
-    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-      const currentTab = tabs[0];
-      const notice = document.getElementById('funpay-tab-notice');
-      if (notice) {
-        const isFunPay = currentTab?.url && currentTab.url.includes('funpay.com');
-        notice.style.display = isFunPay ? 'none' : 'flex';
+      if (auth && auth.user) {
+        cloudBadge.className = 'connection-status-pill connected';
+        const displayUser = auth.user.email?.split('@')[0] || auth.user.role || 'Подключено';
+        cloudText.textContent = `🟢 ${displayUser}`;
+        cloudBadge.title = `Подключено к Supabase как ${auth.user.email} (${auth.role || 'creator'})`;
+      } else {
+        cloudBadge.className = 'connection-status-pill warning';
+        cloudText.textContent = '⚠️ Вход в облако';
+        cloudBadge.title = 'Нажмите, чтобы войти в облако команды';
       }
-    });
+    } catch {
+      cloudBadge.className = 'connection-status-pill';
+      cloudText.textContent = 'Облако: офлайн';
+    }
   }
 
   private setSyncingState(syncing: boolean) {
@@ -236,14 +184,6 @@ class PopupController {
       btn.innerHTML = syncing ? '<span class="icon">⏳</span>' : '<span class="icon">🔄</span>';
       (btn as HTMLButtonElement).disabled = syncing;
     }
-  }
-
-  private showErrorStatus(msg: string) {
-    const statusPill = document.getElementById('popup-status-badge');
-    const statusText = document.getElementById('popup-status-text');
-    if (statusPill) statusPill.className = 'connection-status-pill';
-    if (statusText) statusText.textContent = 'Ошибка';
-    console.warn(msg);
   }
 
   private async loadAndRenderShift() {
@@ -271,7 +211,9 @@ class PopupController {
     const timerVal = document.getElementById('shift-timer');
     const startTimeEl = document.getElementById('shift-start-time');
     const activeOpBadge = document.getElementById('shift-active-op-badge');
-    const liveEarningsEl = document.getElementById('shift-live-earnings');
+    const ordersCountEl = document.getElementById('shift-orders-count');
+    const liveTurnoverEl = document.getElementById('shift-live-turnover');
+    const liveShareEl = document.getElementById('shift-live-share');
     const summaryEl = document.getElementById('shift-completed-summary');
     const opInput = document.getElementById('shift-operator-input') as HTMLInputElement | null;
     const btn = document.getElementById('btn-toggle-shift') as HTMLButtonElement | null;
@@ -285,7 +227,7 @@ class PopupController {
     if (this.shiftState.shiftActive && typeof this.shiftState.shiftStartTime === 'number') {
       // Active shift
       if (cockpit) cockpit.className = this.isShiftCollapsed ? 'shift-cockpit-hero active collapsed' : 'shift-cockpit-hero active';
-      if (badge) badge.textContent = 'СМЕНА В ПРОЦЕССЕ';
+      if (badge) badge.textContent = '🟢 СМЕНА В ПРОЦЕССЕ';
       if (idleBox) idleBox.style.display = 'none';
       if (summaryEl) summaryEl.style.display = 'none';
 
@@ -294,7 +236,7 @@ class PopupController {
         if (activeBox) activeBox.style.display = 'none';
         if (btnRow) btnRow.style.display = 'none';
         if (collapsedBox) collapsedBox.style.display = 'flex';
-        return; // Stealth mode: zero name, zero money, zero timer rendered
+        return;
       } else {
         if (collapseBtn) collapseBtn.style.display = 'inline-block';
         if (activeBox) activeBox.style.display = 'block';
@@ -303,7 +245,7 @@ class PopupController {
       }
 
       if (activeOpBadge) {
-        activeOpBadge.textContent = `👤 ${this.shiftState.currentOperator || 'Оператор 1'}`;
+        activeOpBadge.textContent = `👤 ${this.shiftState.currentOperator || 'Алекс'}`;
       }
       if (startTimeEl) {
         startTimeEl.textContent = `Начало: ${formatTimeOnly(this.shiftState.shiftStartTime)}`;
@@ -319,21 +261,34 @@ class PopupController {
           timerVal.textContent = formatDuration(elapsed);
         }
 
-        if (liveEarningsEl && this.state?.cache?.orders) {
+        if (this.state?.cache?.orders) {
+          const sharePercent = this.state.settings.sellerSharePercent ?? 10.0;
           const earnings = calculateShiftEarnings(
             this.shiftState.shiftStartTime,
             Date.now(),
             this.state.cache.orders,
-            this.state.settings.sellerSharePercent ?? 12.0
+            sharePercent
           );
-          const parts: string[] = [];
-          for (const [curr, amt] of Object.entries(earnings.turnoverByCurrency)) {
-            if (amt > 0) {
-              parts.push(formatMoney(amt, curr));
-            }
+
+          if (ordersCountEl) {
+            ordersCountEl.textContent = `${earnings.ordersCount}`;
           }
-          const text = parts.length > 0 ? parts.join(', ') : '0 ₽';
-          liveEarningsEl.textContent = `${earnings.ordersCount} зак. • Выручка: ${text}`;
+
+          const turnParts: string[] = [];
+          for (const [curr, amt] of Object.entries(earnings.turnoverByCurrency)) {
+            if (amt > 0) turnParts.push(formatMoney(amt, curr));
+          }
+          if (liveTurnoverEl) {
+            liveTurnoverEl.textContent = turnParts.length > 0 ? turnParts.join(', ') : '0 ₽';
+          }
+
+          const shareParts: string[] = [];
+          for (const [curr, amt] of Object.entries(earnings.sellerShareByCurrency)) {
+            if (amt > 0) shareParts.push(formatMoney(amt, curr));
+          }
+          if (liveShareEl) {
+            liveShareEl.textContent = shareParts.length > 0 ? shareParts.join(', ') : '0 ₽';
+          }
         }
       };
 
@@ -382,7 +337,7 @@ class PopupController {
 
     try {
       if (this.shiftState.shiftActive) {
-        const opName = this.shiftState.currentOperator || 'Оператор 1';
+        const opName = this.shiftState.currentOperator || 'Алекс';
         const confirmed = window.confirm(`Завершить рабочую смену оператора «${opName}»?`);
         if (!confirmed) {
           if (btn) btn.disabled = false;
@@ -392,21 +347,19 @@ class PopupController {
         const res = await chrome.runtime.sendMessage({ type: 'STOP_SHIFT' });
         if (res && res.shiftState) {
           this.shiftState = res.shiftState;
-          this.lastShiftCompleted = true;
           if (res.completedShift) {
             this.lastCompletedShift = res.completedShift;
           }
         }
       } else {
         const opInput = document.getElementById('shift-operator-input') as HTMLInputElement | null;
-        const operatorName = opInput?.value?.trim() || 'Оператор 1';
+        const operatorName = opInput?.value?.trim() || 'Алекс';
         const res = await chrome.runtime.sendMessage({
           type: 'START_SHIFT',
           payload: { operatorName }
         });
         if (res && res.shiftState) {
           this.shiftState = res.shiftState;
-          this.lastShiftCompleted = false;
           this.lastCompletedShift = null;
         }
       }
