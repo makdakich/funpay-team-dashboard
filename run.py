@@ -1,4 +1,4 @@
-"""Convenient launcher for FanPay Hotkeys."""
+"""Convenient launcher for FunPay Hotkeys."""
 
 import sys
 import os

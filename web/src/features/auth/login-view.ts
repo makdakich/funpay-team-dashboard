@@ -11,7 +11,7 @@ export function renderLogin(root: HTMLElement, auth: AuthService): void {
   const brand = element('div', 'login-brand');
   const brandMark = element('span', 'brand-mark');
   brandMark.append(icon('bolt'));
-  brand.append(brandMark, element('span', 'brand-wordmark', ['FANPAY']), element('span', 'brand-chip', ['TEAM CLOUD']));
+  brand.append(brandMark, element('span', 'brand-wordmark', ['FUNPAY']), element('span', 'brand-chip', ['TEAM CLOUD']));
 
   const intro = element('div', 'login-intro');
   intro.append(element('div', 'eyebrow', ['КОМАНДНЫЙ ПРОСТРАНСТВО']), element('h1', '', ['Войдите в рабочее пространство']), element('p', '', ['Мониторинг команды и смен в одном защищённом месте.']));
@@ -73,7 +73,7 @@ export function renderLogin(root: HTMLElement, auth: AuthService): void {
     card.append(createNotice('info', 'Для подключения создайте web/.env по образцу web/.env.example. В файле используются только публичные параметры Supabase.'));
   }
   card.append(form, element('div', 'login-footer', ['Доступ предоставляется участникам активной команды.']));
-  page.append(ambient, card, element('div', 'login-copyright', ['FANPAY TEAM DASHBOARD · V2.4']));
+  page.append(ambient, card, element('div', 'login-copyright', ['FUNPAY TEAM DASHBOARD · V2.4']));
   root.replaceChildren(page);
   email.focus();
 }

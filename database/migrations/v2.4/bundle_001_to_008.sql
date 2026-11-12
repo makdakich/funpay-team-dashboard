@@ -1,5 +1,5 @@
 -- ============================================================================
--- FANPAY TEAM DASHBOARD v2.4 - UNIFIED MIGRATION BUNDLE (001-008)
+-- FUNPAY TEAM DASHBOARD v2.4 - UNIFIED MIGRATION BUNDLE (001-008)
 -- Idempotent transactional deployment for Staging / Production
 -- ============================================================================
 
@@ -15,7 +15,7 @@ BEGIN;
 --             профилей при регистрации в auth.users, безопасного одноразового
 --             bootstrap-механизма первого owner, некурсивных функций проверки прав
 --             и триггера защиты системных полей от несанкционированного изменения.
--- Архитектура: FanPay Team Dashboard v2.4 (Single-Team Architecture)
+-- Архитектура: FunPay Team Dashboard v2.4 (Single-Team Architecture)
 -- ============================================================================
 
 -- Включаем расширение для генерации UUID, если оно ещё не включено
@@ -252,7 +252,7 @@ GRANT SELECT, UPDATE ON public.profiles TO authenticated;
 -- Миграция: 002_team_seller_accounts.sql
 -- Назначение: Реестр авторизованных аккаунтов продавца FunPay для команды.
 --             Защищает от синхронизации заказов под произвольными или чужими ID.
--- Архитектура: FanPay Team Dashboard v2.4 (Single-Team Architecture)
+-- Архитектура: FunPay Team Dashboard v2.4 (Single-Team Architecture)
 -- ============================================================================
 
 -- ----------------------------------------------------------------------------
@@ -304,7 +304,7 @@ REVOKE ALL ON public.team_seller_accounts FROM anon;
 --             2. Статус on_shift жёстко валидируется против реальной активной смены.
 --             3. Частичный уникальный индекс исключает две активные смены одного пользователя.
 --             4. При переходе в offline/online/break очищаются связанные поля статуса.
--- Архитектура: FanPay Team Dashboard v2.4 (Single-Team Architecture)
+-- Архитектура: FunPay Team Dashboard v2.4 (Single-Team Architecture)
 -- ============================================================================
 
 -- ----------------------------------------------------------------------------
@@ -607,7 +607,7 @@ REVOKE ALL ON public.operator_status FROM anon;
 -- Назначение: Реестр заказов FunPay с составным первичным ключом, индексами,
 --             защитой неизменяемых финансовых полей и идентификаторов
 --             и строгим ограничением прямого доступа (запись только через RPC).
--- Архитектура: FanPay Team Dashboard v2.4 (Single-Team Architecture)
+-- Архитектура: FunPay Team Dashboard v2.4 (Single-Team Architecture)
 -- ============================================================================
 
 -- ----------------------------------------------------------------------------
@@ -735,7 +735,7 @@ GRANT SELECT ON public.orders TO authenticated;
 --             Внешний ключ к orders использует ON DELETE RESTRICT (нельзя стереть
 --             заказ, по которому ведётся аудит). Связи с profiles используют
 --             ON DELETE SET NULL, сохраняя читаемость через *_display_name снимки.
--- Архитектура: FanPay Team Dashboard v2.4 (Single-Team Architecture)
+-- Архитектура: FunPay Team Dashboard v2.4 (Single-Team Architecture)
 -- ============================================================================
 
 -- ----------------------------------------------------------------------------
@@ -794,7 +794,7 @@ GRANT SELECT ON public.order_audit_logs TO authenticated;
 --             при перекрёстной синхронизации заказов.
 --             Защищает от скрытой подмены данных и фиксирует инциденты для владельца.
 --             Защищён от удаления через ON DELETE RESTRICT и дедуплицирован.
--- Архитектура: FanPay Team Dashboard v2.4 (Single-Team Architecture)
+-- Архитектура: FunPay Team Dashboard v2.4 (Single-Team Architecture)
 -- ============================================================================
 
 -- ----------------------------------------------------------------------------
@@ -855,7 +855,7 @@ GRANT SELECT ON public.order_financial_discrepancies TO authenticated;
 -- Назначение: Общие шаблоны сообщений и горячих клавиш для всей команды.
 --             Серверный контроль уникальности shortcut, аудит авторства правок,
 --             защита created_at от перезаписи клиентом и начальный перенос F1-F8.
--- Архитектура: FanPay Team Dashboard v2.4 (Single-Team Architecture)
+-- Архитектура: FunPay Team Dashboard v2.4 (Single-Team Architecture)
 -- ============================================================================
 
 -- ----------------------------------------------------------------------------
@@ -958,7 +958,7 @@ REVOKE ALL ON public.shared_templates FROM anon;
 --             2. reassign_order_operator (ручное переназначение с блокировкой строк и аудитом)
 --             3. recalculate_shift_attributions (пересчёт атрибуции с поддержкой укорочения смен,
 --                без использования MAX(UUID), с защитой от расширения чужих диапазонов)
--- Архитектура: FanPay Team Dashboard v2.4 (Single-Team Architecture)
+-- Архитектура: FunPay Team Dashboard v2.4 (Single-Team Architecture)
 -- ============================================================================
 
 -- ----------------------------------------------------------------------------

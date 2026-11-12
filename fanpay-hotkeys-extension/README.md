@@ -1,7 +1,7 @@
-# FanPay Hotkeys & Assistant ⚡
+# FunPay Hotkeys & Assistant ⚡
 ### Браузерный помощник продавца FunPay (Chrome Extension Manifest V3)
 
-**FanPay Hotkeys & Assistant** — это нативное расширение для Google Chrome и Chromium-совместимых браузеров (Яндекс.Браузер, Microsoft Edge, Opera, Brave).
+**FunPay Hotkeys & Assistant** — это нативное расширение для Google Chrome и Chromium-совместимых браузеров (Яндекс.Браузер, Microsoft Edge, Opera, Brave).
 
 Проект создан для удобной работы с перепиской и продажами на FunPay:
 * Быстрая вставка шаблонов сообщений по горячим клавишам (`F1`–`F8`) и через компактную панель.
@@ -79,7 +79,7 @@
    ```text
    .../fanpay-hotkeys-extension/dist
    ```
-3. Нажмите **«Выбор папки»**. В списке появится карточка **FanPay Hotkeys & Assistant** ⚡.
+3. Нажмите **«Выбор папки»**. В списке появится карточка **FunPay Hotkeys & Assistant** ⚡.
 
 ---
 

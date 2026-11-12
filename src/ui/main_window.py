@@ -127,7 +127,7 @@ class MainWindow(QMainWindow):
         header_layout.setSpacing(6)
 
         # Brand / Title
-        brand_label = QLabel("FanPay Hotkeys")
+        brand_label = QLabel("FunPay Hotkeys")
         brand_label.setStyleSheet("font-size: 15px; font-weight: bold; color: #ffffff;")
         header_layout.addWidget(brand_label)
 
@@ -184,6 +184,27 @@ class MainWindow(QMainWindow):
         )
         self.shift_widget.open_history_requested.connect(self._open_shift_history)
         header_layout.addWidget(self.shift_widget)
+
+        # Dedicated Team & Cloud Shifts Monitor button
+        self.team_monitor_btn = QPushButton("👥 Монитор смен")
+        self.team_monitor_btn.setFixedHeight(34)
+        self.team_monitor_btn.setToolTip("Открыть монитор команды и журнал смен в реальном времени (Supabase)")
+        self.team_monitor_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #1E293B;
+                color: #38BDF8;
+                border: 1px solid #334155;
+                border-radius: 6px;
+                padding: 0 10px;
+                font-weight: 600;
+            }
+            QPushButton:hover {
+                background-color: #334155;
+                color: #7DD3FC;
+            }
+        """)
+        self.team_monitor_btn.clicked.connect(self._open_shift_history)
+        header_layout.addWidget(self.team_monitor_btn)
 
         header_layout.addSpacing(6)
 

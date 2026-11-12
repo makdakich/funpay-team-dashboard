@@ -65,7 +65,7 @@ async function createCloudClient(options?: { url?: string; key?: string }): Prom
 // Initialize on extension installation
 chrome.runtime.onInstalled.addListener(async () => {
   const state = await loadState();
-  debugLog(state.settings.developerMode, 'FanPay Hotkeys extension installed or updated.');
+  debugLog(state.settings.developerMode, 'FunPay Hotkeys extension installed or updated.');
 
   // Set up periodic shift overrun check (every 10 minutes)
   try {
@@ -521,6 +521,31 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
             console.warn('[Supabase] get shift history error:', e);
           }
           sendResponse({ success: true, history: localHistory });
+          break;
+        }
+
+        case 'CHECK_HISTORICAL_SHIFTS': {
+          const history = await loadShiftHistory();
+          // Смена считается исторической, если она содержит старый ID (не UUID) или ник "Алекс"
+          const legacyShifts = history.filter(s => s.id && (!/^[0-9a-f-]{36}$/i.test(s.id) || s.operatorName === 'Алекс'));
+          sendResponse({ success: true, count: legacyShifts.length, shifts: legacyShifts });
+          break;
+        }
+
+        case 'IMPORT_HISTORICAL_SHIFTS': {
+          try {
+            const history = await loadShiftHistory();
+            const legacyShifts = history.filter(s => s.id && (!/^[0-9a-f-]{36}$/i.test(s.id) || s.operatorName === 'Алекс'));
+            if (legacyShifts.length === 0) {
+              sendResponse({ success: true, count: 0, message: 'Исторические смены не найдены' });
+              break;
+            }
+            const { client } = await createCloudClient();
+            const result = await client.importHistoricalShifts(legacyShifts);
+            sendResponse(result);
+          } catch (err: unknown) {
+            sendResponse({ success: false, error: err instanceof Error ? err.message : 'Ошибка импорта' });
+          }
           break;
         }
 

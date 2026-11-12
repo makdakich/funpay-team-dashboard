@@ -4,6 +4,7 @@ __pycache__/
 *.py[cod]
 *$py.class
 .pytest_cache/
+.pytest-tmp/
 build/
 dist/
 *.spec.bak
@@ -30,6 +31,10 @@ web/.env.*
 
 # Sensitive test and deploy scripts with credentials
 scripts/test_e2e_live.py
+scripts/apply_migration_010.py
+scripts/create_production_backup.py
+scripts/test_creator_immunity.py
+scripts/emergency_admin_restore.py
 
 # OS / IDE
 .DS_Store
@@ -40,6 +45,7 @@ Thumbs.db
 # Local audit & backups
 temp_audit/
 backups/
+supabase/.temp/
 test_geom.db
 test_render.db
 scratch/

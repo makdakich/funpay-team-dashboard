@@ -995,6 +995,51 @@ class OptionsController {
       this.exportShiftsCsv();
     });
 
+    // Import Historical Shifts button (v1.0-v2.1 legacy shifts of "Алекс")
+    document.getElementById('btn-import-historical-shifts')?.addEventListener('click', async () => {
+      const btn = document.getElementById('btn-import-historical-shifts') as HTMLButtonElement | null;
+      const resDiv = document.getElementById('historical-shifts-result');
+      if (btn) {
+        btn.disabled = true;
+        btn.textContent = '⏳ Перенос смен в Cloud...';
+      }
+      if (resDiv) {
+        resDiv.style.display = 'none';
+      }
+
+      try {
+        const res = await chrome.runtime.sendMessage({ action: 'IMPORT_HISTORICAL_SHIFTS' });
+        if (resDiv) {
+          resDiv.style.display = 'block';
+          if (res?.success) {
+            resDiv.style.color = '#34d399';
+            resDiv.innerHTML = `✔ Успешно перенесено: <strong>${res.importedCount ?? 0}</strong> смен (пропущено: ${res.skippedCount ?? 0}). Смены закреплены за Создателем!`;
+            if (btn) {
+              btn.textContent = '✔ Перенос завершён';
+            }
+            await this.refreshState();
+          } else {
+            resDiv.style.color = '#f87171';
+            resDiv.textContent = `❌ Ошибка переноса: ${res?.error || 'Неизвестная ошибка'}`;
+            if (btn) {
+              btn.disabled = false;
+              btn.textContent = 'Повторить перенос';
+            }
+          }
+        }
+      } catch (err: unknown) {
+        if (resDiv) {
+          resDiv.style.display = 'block';
+          resDiv.style.color = '#f87171';
+          resDiv.textContent = `❌ Ошибка: ${err instanceof Error ? err.message : 'Не удалось выполнить запрос'}`;
+        }
+        if (btn) {
+          btn.disabled = false;
+          btn.textContent = 'Повторить перенос';
+        }
+      }
+    });
+
     // Shift modal close/cancel
     const closeModal = () => this.closeShiftModal();
     document.getElementById('btn-shift-modal-cancel')?.addEventListener('click', closeModal);
@@ -1077,6 +1122,26 @@ class OptionsController {
 
     this.renderShiftsActiveBanner();
     this.renderShiftsTable();
+    this.checkHistoricalShiftsBanner();
+  }
+
+  private async checkHistoricalShiftsBanner() {
+    const banner = document.getElementById('historical-shifts-banner');
+    const countBadge = document.getElementById('historical-shifts-count-badge');
+    if (!banner) return;
+
+    try {
+      const res = await chrome.runtime.sendMessage({ action: 'CHECK_HISTORICAL_SHIFTS' });
+      if (res?.success && typeof res.count === 'number' && res.count > 0) {
+        banner.style.display = 'block';
+        if (countBadge) countBadge.textContent = `${res.count} смен`;
+      } else {
+        banner.style.display = 'none';
+      }
+    } catch (e) {
+      console.warn('Failed to check historical shifts banner:', e);
+      banner.style.display = 'none';
+    }
   }
 
   private async renderShiftsActiveBanner() {
@@ -1424,7 +1489,7 @@ class OptionsController {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `fanpay_shifts_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.download = `funpay_shifts_${new Date().toISOString().slice(0, 10)}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   }
@@ -2128,7 +2193,7 @@ class OptionsController {
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `fanpay_backup_${new Date().toISOString().slice(0, 10)}.json`;
+        a.download = `funpay_backup_${new Date().toISOString().slice(0, 10)}.json`;
         a.click();
         URL.revokeObjectURL(url);
       }

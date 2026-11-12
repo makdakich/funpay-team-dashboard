@@ -223,15 +223,20 @@ def normalize_shortcut(hotkey_str: str) -> str:
 
 # Windows registry autostart support
 REG_RUN_PATH = r"Software\Microsoft\Windows\CurrentVersion\Run"
-APP_REG_NAME = "FanPayHotkeys"
+APP_REG_NAME = "FunPayHotkeys"
+LEGACY_APP_REG_NAME = "FanPayHotkeys"
 
 
 def is_autostart_enabled() -> bool:
-    """Check if app is registered in HKCU Run registry."""
+    """Check if app is registered in HKCU Run registry (supports legacy and modern names)."""
     try:
         with winreg.OpenKey(winreg.HKEY_CURRENT_USER, REG_RUN_PATH, 0, winreg.KEY_READ) as key:
-            winreg.QueryValueEx(key, APP_REG_NAME)
-            return True
+            try:
+                winreg.QueryValueEx(key, APP_REG_NAME)
+                return True
+            except (FileNotFoundError, OSError):
+                winreg.QueryValueEx(key, LEGACY_APP_REG_NAME)
+                return True
     except (FileNotFoundError, OSError):
         return False
 
@@ -248,11 +253,16 @@ def set_autostart_enabled(enabled: bool) -> bool:
                     # In dev mode, run python with main.py
                     exe_path = f'"{sys.executable}" "{os.path.abspath(sys.argv[0])}"'
                 winreg.SetValueEx(key, APP_REG_NAME, 0, winreg.REG_SZ, exe_path)
-            else:
                 try:
-                    winreg.DeleteValue(key, APP_REG_NAME)
+                    winreg.DeleteValue(key, LEGACY_APP_REG_NAME)
                 except FileNotFoundError:
                     pass
+            else:
+                for name in (APP_REG_NAME, LEGACY_APP_REG_NAME):
+                    try:
+                        winreg.DeleteValue(key, name)
+                    except FileNotFoundError:
+                        pass
         return True
     except Exception:
         return False

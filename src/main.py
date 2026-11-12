@@ -1,4 +1,4 @@
-"""Entry point for FanPay Hotkeys application."""
+"""Entry point for FunPay Hotkeys application."""
 
 import sys
 import os
@@ -174,7 +174,7 @@ class AppController(QObject):
             self.shift_mgr.start_shift(active_p.name)
             if self.settings_mgr.is_notifications_enabled():
                 ToastNotification.notify(f"Смена начата ({active_p.name})", "#10b981")
-        self.main_window.shift_widget._update_state()
+        self.main_window.shift_widget._update_display_state()
 
     def _handle_quick_menu_triggered(self):
         """Open Quick Menu popup over active window with active profile, shift status, and items."""
@@ -281,7 +281,7 @@ def main():
     app.setQuitOnLastWindowClosed(False)  # Keep running in system tray
     app.setStyleSheet(DARK_THEME_QSS)
 
-    server_name = "FanPayHotkeys_SingleInstance_Pipe"
+    server_name = "FunPayHotkeys_SingleInstance_Pipe"
 
     # Check if another instance is already running
     from PySide6.QtNetwork import QLocalSocket, QLocalServer

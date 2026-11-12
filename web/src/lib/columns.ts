@@ -1,5 +1,5 @@
 /** Списки колонок для PostgREST: единая точка правды для всех разделов. */
-export const PROFILE_COLUMNS = 'user_id,display_name,role,is_active';
+export const PROFILE_COLUMNS = 'user_id,display_name,role,is_active,is_creator,invitation_status,invited_by_user_id';
 
 export const SHIFT_COLUMNS = 'id,user_id,seller_account_id,start_time,end_time,duration_seconds,status';
 

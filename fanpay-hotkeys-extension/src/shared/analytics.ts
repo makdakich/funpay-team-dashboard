@@ -1,6 +1,6 @@
 /**
  * Analytics Engine: Time series aggregation, custom date range filtering,
- * adaptive granularity (hours/days/weeks/months), and SVG chart generation for FanPay Assistant.
+ * adaptive granularity (hours/days/weeks/months), and SVG chart generation for FunPay Assistant.
  */
 
 import { FunPayOrder } from './types';

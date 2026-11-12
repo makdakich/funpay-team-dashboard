@@ -22,7 +22,7 @@ try {
 }
 
 async function runBuild() {
-  console.log(`🚀 Starting FanPay Hotkeys Extension Build (v${appVersion})...`);
+  console.log(`🚀 Starting FunPay Hotkeys Extension Build (v${appVersion})...`);
 
   // Ensure clean dist directory
   if (fs.existsSync(distDir)) {

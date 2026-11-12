@@ -1,5 +1,5 @@
 /**
- * Supabase cloud client for the FanPay Hotkeys extension - team backend v2.4.
+ * Supabase cloud client for the FunPay Hotkeys extension - team backend v2.4.
  *
  * The v2.4 schema is relational and strictly server-driven:
  *   - public.shifts holds no financial aggregates at all. Money is derived from
@@ -398,6 +398,45 @@ export class SupabaseClient {
   public async syncOrdersBatch(sellerAccountId: string, orders: FunPayOrder[]): Promise<OrderSyncReport> {
     const rpc = <T>(fn: string, args: Record<string, unknown>) => this.callRpc<T>(fn, args);
     return syncOrdersWithRpc(rpc, sellerAccountId, orders);
+  }
+
+  /**
+   * Import historical shifts from legacy storage directly into public.shifts.
+   * Executed via secure SECURITY DEFINER RPC import_legacy_shifts, tied to Creator's JWT.
+   */
+  public async importHistoricalShifts(shifts: CompletedShift[]): Promise<{
+    success: boolean;
+    totalReceived?: number;
+    importedCount?: number;
+    skippedCount?: number;
+    error?: string;
+  }> {
+    if (!this.hasAccessToken()) {
+      return { success: false, error: 'Требуется активная сессия Создателя в Supabase' };
+    }
+
+    try {
+      const outcome = await this.callRpc<{
+        success: boolean;
+        total_received: number;
+        imported_count: number;
+        skipped_count: number;
+        error?: string;
+      }>('import_legacy_shifts', { p_shifts: shifts });
+
+      return {
+        success: outcome.success,
+        totalReceived: outcome.total_received,
+        importedCount: outcome.imported_count,
+        skippedCount: outcome.skipped_count,
+        error: outcome.error
+      };
+    } catch (err: unknown) {
+      return {
+        success: false,
+        error: err instanceof Error ? err.message : 'Ошибка при вызове import_legacy_shifts'
+      };
+    }
   }
 }
 

@@ -1,4 +1,4 @@
-# CHANGELOG: FanPay Hotkeys
+# CHANGELOG: FunPay Hotkeys
 
 ## [2.0.0] - 2026-10-01 — Комплексный технический аудит и глобальное обновление
 

@@ -92,14 +92,14 @@ class TrayManager(QObject):
     def update_icon(self, is_active: bool):
         self.tray_icon.setIcon(create_app_icon(is_active))
         status_str = "Включены" if is_active else "Выключены"
-        self.tray_icon.setToolTip(f"FanPay Hotkeys (Хоткеи: {status_str})")
+        self.tray_icon.setToolTip(f"FunPay Hotkeys (Хоткеи: {status_str})")
         self.update_menu()
 
     def update_menu(self):
         self.menu.clear()
 
         # 1. Open
-        open_action = self.menu.addAction("⚡ Открыть FanPay Hotkeys")
+        open_action = self.menu.addAction("⚡ Открыть FunPay Hotkeys")
         open_action.triggered.connect(self.show_main_window_requested.emit)
 
         # 2. Toggle hotkeys

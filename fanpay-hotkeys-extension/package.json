@@ -7,7 +7,7 @@
   "scripts": {
     "build": "node scripts/build.mjs",
     "watch": "node scripts/build.mjs --watch",
-    "test": "tsx --test test/adapters.test.ts test/shift.test.ts test/analytics.test.ts"
+    "test": "tsx --test test/adapters.test.ts test/shift.test.ts test/analytics.test.ts test/orders-sync.test.ts test/e2e-lifecycle.test.ts"
   },
   "devDependencies": {
     "@types/chrome": "^0.0.280",

@@ -1,10 +1,10 @@
-"""Unified Version specification for FanPay Hotkeys & Assistant."""
+"""Unified Version specification for FunPay Hotkeys & Assistant."""
 
 import os
 import json
 
 __version__ = "2.1.0"
-__app_name__ = "FanPay Hotkeys & Assistant"
+__app_name__ = "FunPay Hotkeys & Assistant"
 
 # Try loading from root version.json if available
 try:

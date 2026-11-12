@@ -1,4 +1,4 @@
-# FanPay Team Dashboard Web
+# FunPay Team Dashboard Web
 
 Vite + TypeScript dashboard for the existing Supabase v2.4 project. All table access uses the signed-in user's JWT and the existing RLS policies; the browser build only ever ships the public publishable key.
 

@@ -16,7 +16,7 @@ def qapp():
 
 
 def test_single_instance_ipc(qapp):
-    pipe_name = "FanPayHotkeys_Test_Pipe"
+    pipe_name = "FunPayHotkeys_Test_Pipe"
     QLocalServer.removeServer(pipe_name)
 
     server = QLocalServer()

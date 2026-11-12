@@ -26,11 +26,16 @@ const CURRENCY_SYMBOL_MAP: Record<string, string> = {
   'rur': 'RUB',
   '$': 'USD',
   'usd': 'USD',
+  'долл': 'USD',
+  'долл.': 'USD',
   '€': 'EUR',
   'eur': 'EUR',
+  'евро': 'EUR',
   '₸': 'KZT',
   'kzt': 'KZT',
-  'тенге': 'KZT'
+  'тенге': 'KZT',
+  'тг': 'KZT',
+  'тнг': 'KZT'
 };
 
 export interface SyncOrdersBatchItem {
@@ -247,15 +252,22 @@ export function applyRpcRow(report: OrderSyncReport, row: RpcOrderResult): void 
 
 export type RpcCaller = (fn: string, args: Record<string, unknown>) => Promise<unknown>;
 
+export interface SyncOptions {
+  maxRetries?: number;
+  retryDelayMs?: number;
+}
+
 /**
  * Push locally cached orders to the team backend in chunks of 50.
+ * Retries on transient network errors with exponential backoff.
  * Never throws: per-chunk failures are collected into the report so the operator keeps
  * working even when the cloud is unreachable.
  */
 export async function syncOrdersWithRpc(
   rpc: RpcCaller,
   sellerAccountId: string,
-  orders: FunPayOrder[]
+  orders: FunPayOrder[],
+  options?: SyncOptions
 ): Promise<OrderSyncReport> {
   const report = createEmptyReport(sellerAccountId);
   report.totalOrders = (orders || []).length;
@@ -272,25 +284,50 @@ export async function syncOrdersWithRpc(
   const batches = chunk(items, SYNC_BATCH_LIMIT);
   report.chunks = batches.length;
 
+  const maxRetries = options?.maxRetries ?? 2;
+  const retryDelayMs = options?.retryDelayMs ?? 200;
+
   for (const batch of batches) {
-    try {
-      const response = await rpc('sync_orders_batch', {
-        p_seller_account_id: sellerAccountId,
-        p_orders: batch
-      });
+    let response: unknown = null;
+    let lastError: unknown = null;
+    let succeeded = false;
 
-      const rows: RpcOrderResult[] = Array.isArray(response)
-        ? (response as RpcOrderResult[])
-        : typeof response === 'string'
-          ? (JSON.parse(response) as RpcOrderResult[])
-          : [];
-
-      report.sentOrders += batch.length;
-      for (const row of rows) {
-        applyRpcRow(report, row);
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        response = await rpc('sync_orders_batch', {
+          p_seller_account_id: sellerAccountId,
+          p_orders: batch
+        });
+        succeeded = true;
+        break;
+      } catch (err) {
+        lastError = err;
+        const errMsg = err instanceof Error ? err.message : String(err);
+        // Do not retry on permanent client or permission errors (e.g. 400, 401, 403)
+        if (errMsg.includes('400') || errMsg.includes('401') || errMsg.includes('403') || errMsg.includes('Нет прав')) {
+          break;
+        }
+        if (attempt < maxRetries) {
+          const delay = retryDelayMs * Math.pow(2, attempt);
+          await new Promise((resolve) => setTimeout(resolve, delay));
+        }
       }
-    } catch (err) {
-      report.errors.push(err instanceof Error ? err.message : 'Неизвестная ошибка пакетной синхронизации');
+    }
+
+    if (!succeeded) {
+      report.errors.push(lastError instanceof Error ? lastError.message : 'Неизвестная ошибка пакетной синхронизации');
+      continue;
+    }
+
+    const rows: RpcOrderResult[] = Array.isArray(response)
+      ? (response as RpcOrderResult[])
+      : typeof response === 'string'
+        ? (JSON.parse(response) as RpcOrderResult[])
+        : [];
+
+    report.sentOrders += batch.length;
+    for (const row of rows) {
+      applyRpcRow(report, row);
     }
   }
 

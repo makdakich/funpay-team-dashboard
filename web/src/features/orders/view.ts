@@ -23,11 +23,13 @@ const REALTIME_DEBOUNCE_MS = 900;
 export interface OrdersPageOptions {
   orderRef: { sellerAccountId: string; orderId: string } | null;
   params: URLSearchParams;
+  isOwner?: boolean;
 }
 
 export class OrdersPage {
   private readonly container: HTMLElement;
   private readonly orderRef: OrdersPageOptions['orderRef'];
+  private readonly isOwner: boolean;
   private query: OrderQuery;
   private profiles: Profile[] = [];
   private shops: SellerAccount[] = [];
@@ -44,6 +46,7 @@ export class OrdersPage {
   constructor(container: HTMLElement, options: OrdersPageOptions) {
     this.container = container;
     this.orderRef = options.orderRef;
+    this.isOwner = Boolean(options.isOwner);
     this.query = orderQueryFromParams(options.params);
     if (this.orderRef) this.mountDetail();
     else this.mountList();
@@ -437,9 +440,11 @@ export class OrdersPage {
       'Заказ продолжает учитываться в подтверждённом обороте команды и в доле нового оператора, но исчезает из оборота конкретной смены.'
     ));
 
-    const reassign = createPanel('Ручное переназначение оператора', 'Нужна непустая причина; запись попадёт в order_audit_logs');
-    reassign.body.append(this.buildReassignForm(order));
-    stack.append(reassign.panel);
+    if (this.isOwner) {
+      const reassign = createPanel('Ручное переназначение оператора', 'Нужна непустая причина; запись попадёт в order_audit_logs');
+      reassign.body.append(this.buildReassignForm(order));
+      stack.append(reassign.panel);
+    }
 
     const auditPanel = createPanel('История изменений', audit.length ? 'Записей: ' + audit.length : 'Изменений ещё не было');
     if (audit.length === 0) {

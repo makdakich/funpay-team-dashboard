@@ -1,4 +1,4 @@
-"""Cloud Sync Engine for FanPay Hotkeys Desktop (team backend v2.4).
+"""Cloud Sync Engine for FunPay Hotkeys Desktop (team backend v2.4).
 
 Talks to the shared Supabase backend over PostgREST and GoTrue using only the
 standard library (urllib + json).
@@ -92,7 +92,7 @@ class CloudSyncClient:
             "Authorization": "Bearer " + (self._access_token or self.key),
             "Content-Type": "application/json",
             "Prefer": prefer or "return=representation",
-            "User-Agent": "FanPayHotkeysDesktop/2.4",
+            "User-Agent": "FunPayHotkeysDesktop/2.4",
         }
         return headers
 
@@ -112,7 +112,7 @@ class CloudSyncClient:
             headers={
                 "apikey": self.key,
                 "Content-Type": "application/json",
-                "User-Agent": "FanPayHotkeysDesktop/2.4",
+                "User-Agent": "FunPayHotkeysDesktop/2.4",
             },
             method="POST",
         )

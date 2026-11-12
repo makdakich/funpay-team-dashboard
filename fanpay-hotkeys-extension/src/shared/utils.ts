@@ -249,7 +249,7 @@ export function debugLog(devMode: boolean, message: string, ...args: unknown[]) 
     }
     return arg;
   });
-  console.log(`[FanPay Assistant Debug ${new Date().toLocaleTimeString()}]: ${message}`, ...sanitizedArgs);
+  console.log(`[FunPay Assistant Debug ${new Date().toLocaleTimeString()}]: ${message}`, ...sanitizedArgs);
 }
 
 /**

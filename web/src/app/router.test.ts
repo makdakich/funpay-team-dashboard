@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { buildHref, getDashboardRoute, getRouteTitle, parseRoute, routeKey } from './router';
+import {
+  buildHref, getDashboardRoute, getRouteTitle, isAcceptInviteRoute, isAuthRoute,
+  isLoginRoute, parseRoute, routeKey
+} from './router';
 
 describe('hash routes', () => {
   it.each([
@@ -46,5 +49,31 @@ describe('hash routes', () => {
     expect(getRouteTitle('shifts')).toBe('История смен');
     expect(getRouteTitle('orders')).toBe('Заказы');
     expect(getRouteTitle('finance')).toBe('Финансы');
+  });
+
+  it('identifies login routes from hash and pathname', () => {
+    expect(isLoginRoute('#/login')).toBe(true);
+    expect(isLoginRoute('#login')).toBe(true);
+    expect(isLoginRoute('#/login?redirect=team')).toBe(true);
+    expect(isLoginRoute('', '/login')).toBe(true);
+    expect(isLoginRoute('', '/login/')).toBe(true);
+    expect(isLoginRoute('#/overview')).toBe(false);
+    expect(isLoginRoute('', '/overview')).toBe(false);
+  });
+
+  it('identifies accept-invite routes from hash and pathname', () => {
+    expect(isAcceptInviteRoute('#/auth/accept-invite')).toBe(true);
+    expect(isAcceptInviteRoute('#/auth/accept-invite#access_token=abc')).toBe(true);
+    expect(isAcceptInviteRoute('#/auth/accept-invite?error=unauthorized')).toBe(true);
+    expect(isAcceptInviteRoute('', '/auth/accept-invite')).toBe(true);
+    expect(isAcceptInviteRoute('#/overview')).toBe(false);
+    expect(isAcceptInviteRoute('#/team')).toBe(false);
+  });
+
+  it('identifies general auth routes', () => {
+    expect(isAuthRoute('#/login')).toBe(true);
+    expect(isAuthRoute('#/auth/accept-invite')).toBe(true);
+    expect(isAuthRoute('', '/login')).toBe(true);
+    expect(isAuthRoute('#/orders')).toBe(false);
   });
 });

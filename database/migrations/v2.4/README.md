@@ -1,6 +1,6 @@
-# FanPay Team Dashboard v2.4 — SQL Миграции базы данных
+# FunPay Team Dashboard v2.4 — SQL Миграции базы данных
 
-Данный каталог содержит полный, согласованный комплект SQL-миграций для развёртывания облачной инфраструктуры **FanPay Team Dashboard v2.4** в среде Supabase.
+Данный каталог содержит полный, согласованный комплект SQL-миграций для развёртывания облачной инфраструктуры **FunPay Team Dashboard v2.4** в среде Supabase.
 
 ---
 
@@ -33,6 +33,7 @@
 | **7** | [`007_shared_templates.sql`](./007_shared_templates.sql) | Общие шаблоны `shared_templates`, уникальность shortcut, серверный триггер аудита, защита `created_at`, начальный сид F1–F8. |
 | **8** | [`008_rpc_functions.sql`](./008_rpc_functions.sql) | Транзакционные функции без `MAX(UUID)`: `sync_orders_batch` (лимит 50, строгий regex Numeric), `reassign_order_operator`, `recalculate_shift_attributions`. |
 | **9** | [`009_validation.sql`](./009_validation.sql) | Комплексная статическая валидация схемы, прав и RLS, а также безопасные динамические тесты с моком JWT claims. |
+| **10** | [`010_multi_owner_and_access.sql`](./010_multi_owner_and_access.sql) | Трёхуровневая модель доступа (Creator -> Owner -> Operator), защита создателя системы, журнал аудита прав `profile_audit_logs`, функции `set_member_role` и `set_member_active`, усиление RPC `reassign_order_operator`. |
 
 ---
 

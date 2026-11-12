@@ -107,7 +107,7 @@ export class FunPayPanel {
 
     if (this.isCollapsed) {
       this.container.innerHTML = `
-        <div class="fphk-toggle-btn" id="fphk-panel-toggle-btn" role="button" tabindex="0" title="Развернуть FanPay Hotkeys (нажмите чтобы открыть)">
+        <div class="fphk-toggle-btn" id="fphk-panel-toggle-btn" role="button" tabindex="0" title="Развернуть FunPay Hotkeys (нажмите чтобы открыть)">
           <span class="fphk-bolt">⚡</span>
           <span class="fphk-badge-mini">Hotkeys</span>
           <button type="button" class="fphk-expand-icon-btn" id="fphk-btn-panel-expand" title="Развернуть">⛶</button>
@@ -139,7 +139,7 @@ export class FunPayPanel {
         <div class="fphk-panel-header" id="fphk-panel-drag-handle" title="Перетащите для перемещения">
           <div class="fphk-panel-title">
             <span class="fphk-bolt">⚡</span>
-            <span class="fphk-panel-title-text">FanPay Hotkeys</span>
+            <span class="fphk-panel-title-text">FunPay Hotkeys</span>
           </div>
           <div class="fphk-header-actions">
             <button class="fphk-icon-btn fphk-settings-btn" title="Открыть настройки">⚙️</button>

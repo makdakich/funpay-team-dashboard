@@ -79,7 +79,7 @@ class ProfileManager:
 
         hotkeys = self.db.get_hotkeys_by_profile(profile_id)
         data = {
-            "app": "FanPayHotkeys",
+            "app": "FunPayHotkeys",
             "version": "1.0",
             "profile_name": profile.name,
             "hotkeys": [
@@ -113,7 +113,7 @@ class ProfileManager:
         except Exception as e:
             return False, None, f"Не удалось прочитать файл: {str(e)}"
 
-        if not isinstance(data, dict) or data.get("app") != "FanPayHotkeys":
+        if not isinstance(data, dict) or data.get("app") not in ("FanPayHotkeys", "FunPayHotkeys"):
             return False, None, "Неверный формат файла .fhkprofile"
 
         base_name = data.get("profile_name", "Импортированный профиль").strip()

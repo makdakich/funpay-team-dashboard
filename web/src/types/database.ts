@@ -1,4 +1,5 @@
 export type TeamRole = 'owner' | 'operator';
+export type InvitationStatus = 'invited' | 'pending_confirmation' | 'active' | 'inactive';
 export type PresenceStatus = 'offline' | 'online' | 'on_shift' | 'break';
 export type ShiftStatus = 'active' | 'completed';
 export type CurrencyCode = 'RUB' | 'USD' | 'EUR' | 'KZT';
@@ -11,6 +12,9 @@ export interface Profile {
   display_name: string;
   role: TeamRole;
   is_active: boolean;
+  is_creator?: boolean;
+  invitation_status?: InvitationStatus;
+  invited_by_user_id?: string | null;
 }
 
 export interface OperatorStatus {
@@ -77,6 +81,21 @@ export interface OrderAuditLog {
   changed_by_user_id: string | null;
   changed_by_display_name: string;
   reason: string;
+  created_at: string;
+}
+
+export interface ProfileAuditLog {
+  id: string;
+  target_user_id: string;
+  target_display_name: string;
+  changed_by_user_id: string | null;
+  changed_by_display_name: string;
+  action: 'invite_created' | 'invite_resent' | 'role_changed' | 'member_activated' | 'member_deactivated';
+  old_role?: string | null;
+  new_role?: string | null;
+  old_active_status?: boolean | null;
+  new_active_status?: boolean | null;
+  reason?: string | null;
   created_at: string;
 }
 

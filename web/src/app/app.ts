@@ -1,13 +1,18 @@
 import { AuthService, type AuthState } from '@/lib/auth';
+import type { Profile } from '@/types/database';
 import { getErrorMessage } from '@/lib/errors';
 import { createButton, createNotice, element, icon, type IconName } from '@/components/ui';
 import { renderLogin } from '@/features/auth/login-view';
+import { renderAcceptInvite } from '@/features/auth/accept-invite-view';
 import { renderOverview } from '@/features/overview/view';
 import { FinancePage } from '@/features/finance/view';
 import { OrdersPage } from '@/features/orders/view';
 import { ShiftHistoryPage } from '@/features/shifts/view';
 import { TeamPage } from '@/features/team/view';
-import { getRouteTitle, parseRoute, routeKey, type DashboardRoute, type RouteTarget } from './router';
+import {
+  getRouteTitle, isAcceptInviteRoute, isLoginRoute, parseRoute, routeKey,
+  type DashboardRoute, type RouteTarget
+} from './router';
 
 export class DashboardApp {
   private readonly root: HTMLElement;
@@ -42,8 +47,32 @@ export class DashboardApp {
 
   private renderAuthState(): void {
     const state = this.authState;
+
+    if (state.status === 'loading') {
+      const loading = element('main', 'auth-loading');
+      loading.append(element('div', 'loading-orb'), element('span', '', ['Проверяем сессию…']));
+      this.root.replaceChildren(loading);
+      return;
+    }
+
+    if (isAcceptInviteRoute()) {
+      this.destroyCurrentPage();
+      this.activeUserId = null;
+      this.currentRouteKey = null;
+      this.mainContent = null;
+      this.mobileSidebar = null;
+      this.mobileOverlay = null;
+      this.mobileButton = null;
+      renderAcceptInvite(this.root, this.auth);
+      return;
+    }
+
     if (state.status === 'active') {
-      if (this.activeUserId !== state.user.id) this.mountDashboard(state.profile.display_name, state.profile.role, state.user.id);
+      if (isLoginRoute()) {
+        window.location.hash = '#/overview';
+        return;
+      }
+      if (this.activeUserId !== state.user.id) this.mountDashboard(state.profile.display_name, state.profile.role, state.user.id, state.profile);
       else this.handleRouteChange();
       return;
     }
@@ -56,11 +85,7 @@ export class DashboardApp {
     this.mobileOverlay = null;
     this.mobileButton = null;
 
-    if (state.status === 'loading') {
-      const loading = element('main', 'auth-loading');
-      loading.append(element('div', 'loading-orb'), element('span', '', ['Проверяем сессию…']));
-      this.root.replaceChildren(loading);
-    } else if (state.status === 'inactive') {
+    if (state.status === 'inactive') {
       this.renderAccessBlocked('Профиль команды не найден или отключён. Попросите владельца проверить доступ.', 'inactive');
     } else if (state.status === 'profile-error') {
       this.renderAccessBlocked(`Не удалось проверить профиль: ${state.message}`, 'profile-error');
@@ -69,7 +94,7 @@ export class DashboardApp {
     }
   }
 
-  private mountDashboard(displayName: string, role: string, userId: string): void {
+  private mountDashboard(displayName: string, role: string, userId: string, profile?: Profile): void {
     this.destroyCurrentPage();
     this.activeUserId = userId;
     const shell = element('div', 'app-shell');
@@ -80,7 +105,7 @@ export class DashboardApp {
     brand.href = '#/overview';
     const mark = element('span', 'brand-mark');
     mark.append(icon('bolt'));
-    brand.append(mark, element('span', 'brand-copy', [element('strong', '', ['FANPAY']), element('small', '', ['TEAM DASHBOARD'])]));
+    brand.append(mark, element('span', 'brand-copy', [element('strong', '', ['FUNPAY']), element('small', '', ['TEAM DASHBOARD'])]));
     sidebar.append(brand);
 
     const workspace = element('div', 'workspace-switcher');
@@ -103,7 +128,8 @@ export class DashboardApp {
 
     const sidebarFooter = element('div', 'sidebar-footer');
     const avatar = element('span', 'profile-avatar', [initials(displayName)]);
-    const userMeta = element('span', 'profile-meta', [element('strong', '', [displayName]), element('small', '', [role === 'owner' ? 'Владелец команды' : 'Оператор'])]);
+    const roleLabel = profile?.is_creator ? 'Создатель команды' : (role === 'owner' ? 'Руководитель' : 'Оператор');
+    const userMeta = element('span', 'profile-meta', [element('strong', '', [displayName]), element('small', '', [roleLabel])]);
     const logout = createButton('Выйти', 'icon-button logout-button', 'logout');
     logout.title = 'Выйти из аккаунта';
     logout.setAttribute('aria-label', 'Выйти из аккаунта');
@@ -151,7 +177,15 @@ export class DashboardApp {
   }
 
   private handleRouteChange(): void {
-    if (this.authState.status !== 'active' || !this.mainContent) return;
+    if (isAcceptInviteRoute() || isLoginRoute()) {
+      this.renderAuthState();
+      return;
+    }
+
+    if (this.authState.status !== 'active' || !this.mainContent) {
+      this.renderAuthState();
+      return;
+    }
     const target = parseRoute(window.location.hash);
     // Нормализуем только «голый» неизвестный маршрут: путь детализации и query-параметры фильтров сохраняем.
     if (!target.segments.length && !target.params.toString()) {
@@ -180,9 +214,11 @@ export class DashboardApp {
     const breadcrumb = document.querySelector('.breadcrumb-current');
     if (breadcrumb) breadcrumb.textContent = getRouteTitle(target.route);
 
+    const currentProfile = this.authState.status === 'active' ? this.authState.profile : null;
+
     switch (target.route) {
       case 'team':
-        this.currentPage = new TeamPage(main);
+        this.currentPage = new TeamPage(main, currentProfile);
         break;
       case 'shifts':
         this.currentPage = new ShiftHistoryPage(main, { detailShiftId: target.segments[0] ?? null });
@@ -190,7 +226,8 @@ export class DashboardApp {
       case 'orders':
         this.currentPage = new OrdersPage(main, {
           orderRef: target.segments.length >= 2 ? { sellerAccountId: target.segments[0], orderId: target.segments[1] } : null,
-          params: target.params
+          params: target.params,
+          isOwner: currentProfile?.role === 'owner'
         });
         break;
       case 'finance':

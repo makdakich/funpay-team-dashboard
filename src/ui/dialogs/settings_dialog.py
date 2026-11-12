@@ -124,7 +124,7 @@ class SettingsDialog(QDialog):
         self.tray_cb = QCheckBox("Сворачивать в трей при закрытии главного окна")
         layout.addWidget(self.tray_cb)
 
-        self.autostart_cb = QCheckBox("Запускать FanPay Hotkeys вместе с Windows")
+        self.autostart_cb = QCheckBox("Запускать FunPay Hotkeys вместе с Windows")
         layout.addWidget(self.autostart_cb)
 
         # App filtering
@@ -607,7 +607,7 @@ class SettingsDialog(QDialog):
             self,
             "Экспорт профиля",
             f"{active.name.replace(' ', '_')}.fhkprofile",
-            "FanPay Profile (*.fhkprofile);;All Files (*.*)",
+            "FunPay Profile (*.fhkprofile);;All Files (*.*)",
         )
         if file_path:
             success = self.profile_mgr.export_profile(active.id, file_path)
@@ -621,7 +621,7 @@ class SettingsDialog(QDialog):
             self,
             "Импорт профиля",
             "",
-            "FanPay Profile (*.fhkprofile);;All Files (*.*)",
+            "FunPay Profile (*.fhkprofile);;All Files (*.*)",
         )
         if file_path:
             success, profile, err = self.profile_mgr.import_profile(file_path)

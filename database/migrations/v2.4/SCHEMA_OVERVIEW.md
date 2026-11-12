@@ -1,4 +1,4 @@
-# Обзор схемы данных FanPay Team Dashboard v2.4
+# Обзор схемы данных FunPay Team Dashboard v2.4
 
 ---
 

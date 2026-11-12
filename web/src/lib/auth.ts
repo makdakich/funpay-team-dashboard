@@ -72,7 +72,7 @@ export class AuthService {
     const generation = ++this.validationGeneration;
     const { data, error } = await supabase
       .from('profiles')
-      .select('user_id,display_name,role,is_active')
+      .select('user_id,display_name,role,is_active,is_creator,invitation_status,invited_by_user_id')
       .eq('user_id', session.user.id)
       .maybeSingle();
 

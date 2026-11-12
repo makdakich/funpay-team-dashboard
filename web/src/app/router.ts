@@ -1,4 +1,5 @@
 export type DashboardRoute = 'overview' | 'team' | 'shifts' | 'orders' | 'finance';
+export type AuthRoute = 'login' | 'accept-invite';
 
 export const DASHBOARD_ROUTES: readonly DashboardRoute[] = ['overview', 'team', 'shifts', 'orders', 'finance'];
 
@@ -17,6 +18,34 @@ export interface RouteTarget {
 }
 
 export type QueryParams = URLSearchParams | Record<string, string | number | null | undefined>;
+
+/** Проверяет, является ли текущий маршрут экраном входа (/login или #/login). */
+export function isLoginRoute(
+  hash: string = typeof window !== 'undefined' ? window.location.hash : '',
+  pathname: string = typeof window !== 'undefined' ? window.location.pathname : ''
+): boolean {
+  if (pathname.endsWith('/login') || pathname.endsWith('/login/')) return true;
+  const cleanHash = hash.replace(/^#\/?/, '').split('?')[0].split('#')[0];
+  return cleanHash === 'login' || cleanHash === 'auth/login';
+}
+
+/** Проверяет, является ли текущий маршрут принятием приглашения (/#/auth/accept-invite). */
+export function isAcceptInviteRoute(
+  hash: string = typeof window !== 'undefined' ? window.location.hash : '',
+  pathname: string = typeof window !== 'undefined' ? window.location.pathname : ''
+): boolean {
+  if (pathname.includes('/auth/accept-invite')) return true;
+  const cleanHash = hash.replace(/^#\/?/, '').split('?')[0].split('#')[0];
+  return cleanHash === 'auth/accept-invite' || cleanHash.startsWith('auth/accept-invite');
+}
+
+/** Проверяет, является ли маршрут любым экраном авторизации. */
+export function isAuthRoute(
+  hash: string = typeof window !== 'undefined' ? window.location.hash : '',
+  pathname: string = typeof window !== 'undefined' ? window.location.pathname : ''
+): boolean {
+  return isLoginRoute(hash, pathname) || isAcceptInviteRoute(hash, pathname);
+}
 
 /** Разбирает hash вида '#/orders/SELLER_MAIN/ORD-1?status=closed' в маршрут, параметры пути и query. */
 export function parseRoute(hash: string): RouteTarget {

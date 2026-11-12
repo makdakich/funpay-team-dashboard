@@ -1,5 +1,5 @@
 /**
- * Shared Type Definitions for FanPay Hotkeys Extension
+ * Shared Type Definitions for FunPay Hotkeys Extension
  */
 
 export interface Profile {

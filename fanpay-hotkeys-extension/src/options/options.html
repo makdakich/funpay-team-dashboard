@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>FanPay Hotkeys & Assistant v2.1.0 — Панель управления</title>
+  <title>FunPay Hotkeys & Assistant v2.1.0 — Панель управления</title>
   <link rel="stylesheet" href="options.css">
 </head>
 <body class="theme-obsidian">
@@ -12,7 +12,7 @@
     <div class="topbar-left">
       <div class="brand-badge">
         <span class="brand-bolt">⚡</span>
-        <span class="brand-name">FANPAY COMMAND</span>
+        <span class="brand-name">FUNPAY COMMAND</span>
         <span class="version-tag" id="app-version-badge">v2.1.0</span>
       </div>
       <div class="topbar-search-box">
@@ -440,6 +440,28 @@
           <div class="active-banner-right">
             <button id="btn-shifts-stop-active" class="btn btn-danger-glow">🛑 Завершить смену</button>
           </div>
+        </div>
+
+        <!-- Historical Shifts Migration Banner -->
+        <div id="historical-shifts-banner" class="obsidian-card" style="display: none; border: 1px solid rgba(56, 189, 248, 0.35); background: linear-gradient(180deg, rgba(56, 189, 248, 0.08) 0%, rgba(15, 23, 42, 0.6) 100%); margin-bottom: 20px; padding: 16px 20px; border-radius: 10px;">
+          <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 14px;">
+            <div>
+              <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+                <span style="font-size: 16px;">📦</span>
+                <span style="font-weight: 600; font-size: 14px; color: #38bdf8;">Исторические смены (версии v1.0–v2.1)</span>
+                <span class="kpi-pill" id="historical-shifts-count-badge" style="background: rgba(56, 189, 248, 0.2); color: #7dd3fc; border: 1px solid rgba(56, 189, 248, 0.4);">0 смен</span>
+              </div>
+              <div id="historical-shifts-desc" style="font-size: 13px; color: #94a3b8; max-width: 650px; line-height: 1.45;">
+                Обнаружены локальные смены оператора «Алекс». Это ваш исторический профиль: вы можете безопасно перенести их в командный Cloud Dashboard, где они будут привязаны к вашей учётной записи Создателя.
+              </div>
+            </div>
+            <div style="display: flex; align-items: center; gap: 12px;">
+              <button id="btn-import-historical-shifts" class="btn btn-primary-accent" style="background: #0284c7; border-color: #38bdf8; color: #ffffff; padding: 8px 16px; font-weight: 600;">
+                🚀 Перенести историю в Cloud
+              </button>
+            </div>
+          </div>
+          <div id="historical-shifts-result" style="margin-top: 12px; font-size: 13px; display: none;"></div>
         </div>
 
         <!-- Summary Metric Cards -->

@@ -25,7 +25,7 @@ class FunPayContentController {
     if (window.__FPHK_INITIALIZED__) return;
     window.__FPHK_INITIALIZED__ = true;
 
-    debugLog(false, 'FanPay Content Script initializing on', window.location.href);
+    debugLog(false, 'FunPay Content Script initializing on', window.location.href);
 
     // 1. Load state and shift state directly from storage for instant responsiveness
     try {

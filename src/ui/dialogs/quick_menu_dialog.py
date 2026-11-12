@@ -57,7 +57,7 @@ class QuickMenuDialog(QDialog):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("FanPay Quick Menu")
+        self.setWindowTitle("FunPay Quick Menu")
         self.setFixedWidth(480)
         self.setFixedHeight(380)
 

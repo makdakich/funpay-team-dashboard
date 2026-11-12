@@ -38,7 +38,7 @@ jobs:
       - run: npm run build
 
   deploy:
-    if: github.event_name == 'workflow_dispatch' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    if: (github.event_name == 'workflow_dispatch' || github.event_name == 'push') && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
     needs: validate
     runs-on: ubuntu-latest
     permissions:
@@ -64,8 +64,8 @@ jobs:
       - run: npm test
       - name: Build public site
         env:
-          VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
-          VITE_SUPABASE_ANON_KEY: ${{ vars.VITE_SUPABASE_ANON_KEY }}
+          VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL || 'https://zlpbywengymnvrpbcxvh.supabase.co' }}
+          VITE_SUPABASE_ANON_KEY: ${{ vars.VITE_SUPABASE_ANON_KEY || 'sb_publishable_bNZgLYmEol6FzzqvfXOHtA_d-mzoaKR' }}
         run: |
           test -n "$VITE_SUPABASE_URL" || (echo "Missing repository variable VITE_SUPABASE_URL" && exit 1)
           test -n "$VITE_SUPABASE_ANON_KEY" || (echo "Missing repository variable VITE_SUPABASE_ANON_KEY" && exit 1)

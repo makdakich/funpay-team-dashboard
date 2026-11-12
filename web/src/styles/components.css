@@ -210,3 +210,25 @@ td { color: var(--text-secondary); }.numeric-cell { color: var(--text); font-fam
 .team-table tbody tr:last-child td { border-bottom: 0; }
 .team-table tbody tr:hover { background: rgb(25 35 58 / 45%); }
 .team-empty { margin-top: 4px; }
+
+/* Управление командой и модальное окно приглашения */
+.badge-creator { color: #f59e0b; background: rgb(245 158 11 / 15%); border-color: rgb(245 158 11 / 35%); }
+.badge-owner { color: #38bdf8; background: rgb(56 189 248 / 15%); border-color: rgb(56 189 248 / 35%); }
+.badge-operator { color: #94a3b8; background: rgb(148 163 184 / 12%); border-color: rgb(148 163 184 / 25%); }
+.row-inactive { opacity: 0.65; background: rgb(15 23 42 / 30%); }
+
+.member-actions-cell { text-align: right; white-space: nowrap; }
+.action-buttons-group { display: inline-flex; align-items: center; justify-content: flex-end; gap: 6px; }
+.button-xs { padding: 4px 8px; font-size: 11px; min-height: 26px; border-radius: 6px; }
+.button-danger-subtle { color: #fca5a5; background: rgb(239 68 68 / 14%); border: 1px solid rgb(239 68 68 / 30%); }
+.button-danger-subtle:hover { background: rgb(239 68 68 / 25%); color: #fff; }
+.text-xs { font-size: 11px; }
+
+.modal-overlay { position: fixed; inset: 0; z-index: 50; display: flex; align-items: center; justify-content: center; background: rgb(0 0 0 / 65%); backdrop-filter: blur(4px); padding: 20px; }
+.modal-dialog { width: min(100%, 460px); background: #0f172a; border: 1px solid var(--border-strong); border-radius: 14px; box-shadow: 0 25px 60px rgb(0 0 0 / 60%); padding: 24px; display: flex; flex-direction: column; gap: 16px; }
+.modal-header h3 { margin: 0; font-size: 17px; font-weight: 700; color: #f8fafc; }
+.modal-form { display: flex; flex-direction: column; gap: 14px; }
+.form-group { display: flex; flex-direction: column; gap: 6px; }
+.form-group label { font-size: 12px; font-weight: 600; color: var(--text-secondary); }
+.form-note { font-size: 11px; color: var(--text-muted); }
+.modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 8px; }

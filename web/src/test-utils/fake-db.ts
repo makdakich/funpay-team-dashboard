@@ -16,8 +16,10 @@ export interface FakeDb {
   client: DbClient;
   calls: RecordedCall[];
   rpcCalls: Array<{ name: string; args: Record<string, unknown> }>;
+  functionCalls: Array<{ name: string; options?: { body?: unknown } }>;
   tableCalls(table: string): RecordedCall[];
   setRpcResponse(response: FakeResponse): void;
+  setFunctionResponse(response: FakeResponse): void;
 }
 
 const CHAIN_METHODS = [
@@ -29,7 +31,9 @@ const CHAIN_METHODS = [
 export function createFakeDb(responses: Record<string, FakeResponse> = {}): FakeDb {
   const calls: RecordedCall[] = [];
   const rpcCalls: Array<{ name: string; args: Record<string, unknown> }> = [];
+  const functionCalls: Array<{ name: string; options?: { body?: unknown } }> = [];
   let rpcResponse: FakeResponse = { data: null, error: null };
+  let functionResponse: FakeResponse = { data: null, error: null };
 
   const from = (table: string) => {
     const response = responses[table] ?? { data: [], error: null, count: 0 };
@@ -53,6 +57,12 @@ export function createFakeDb(responses: Record<string, FakeResponse> = {}): Fake
     rpc: (name: string, args: Record<string, unknown>) => {
       rpcCalls.push({ name, args });
       return Promise.resolve({ data: rpcResponse.data, error: rpcResponse.error });
+    },
+    functions: {
+      invoke: (name: string, options?: { body?: unknown }) => {
+        functionCalls.push({ name, options });
+        return Promise.resolve({ data: functionResponse.data, error: functionResponse.error });
+      }
     }
   } as unknown as DbClient;
 
@@ -60,8 +70,10 @@ export function createFakeDb(responses: Record<string, FakeResponse> = {}): Fake
     client,
     calls,
     rpcCalls,
+    functionCalls,
     tableCalls: (table: string) => calls.filter(call => call.table === table),
-    setRpcResponse: (response: FakeResponse) => { rpcResponse = response; }
+    setRpcResponse: (response: FakeResponse) => { rpcResponse = response; },
+    setFunctionResponse: (response: FakeResponse) => { functionResponse = response; }
   };
 }
 

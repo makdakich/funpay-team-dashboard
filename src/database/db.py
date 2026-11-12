@@ -10,20 +10,32 @@ from .models import Profile, HotkeyItem, Setting, Shift, UsageLogEntry, MODE_PAS
 
 
 def get_default_db_path() -> str:
-    """Get the standard database file path in %APPDATA%."""
+    """Get the standard database file path in %APPDATA% with seamless backward compatibility."""
     appdata = os.environ.get("APPDATA")
     if appdata:
-        target_dir = os.path.join(appdata, "FanPayHotkeys")
+        modern_dir = os.path.join(appdata, "FunPayHotkeys")
+        modern_db = os.path.join(modern_dir, "funpay_hotkeys.db")
+        if os.path.exists(modern_db):
+            return modern_db
+
+        legacy_dir = os.path.join(appdata, "FanPayHotkeys")
+        legacy_db = os.path.join(legacy_dir, "fanpay_hotkeys.db")
+        if os.path.exists(legacy_db):
+            return legacy_db
+
+        target_dir = modern_dir
+        db_filename = "funpay_hotkeys.db"
     else:
         target_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "data"))
+        db_filename = "funpay_hotkeys.db"
 
     try:
         os.makedirs(target_dir, exist_ok=True)
-        return os.path.join(target_dir, "fanpay_hotkeys.db")
+        return os.path.join(target_dir, db_filename)
     except Exception:
         fallback_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "data"))
         os.makedirs(fallback_dir, exist_ok=True)
-        return os.path.join(fallback_dir, "fanpay_hotkeys.db")
+        return os.path.join(fallback_dir, db_filename)
 
 
 class Database:

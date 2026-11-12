@@ -20,6 +20,7 @@ expected_files = [
     '007_shared_templates.sql',
     '008_rpc_functions.sql',
     '009_validation.sql',
+    '010_multi_owner_and_access.sql',
     'README.md',
     'ROLLBACK.md',
     'SCHEMA_OVERVIEW.md',
@@ -27,7 +28,7 @@ expected_files = [
 ]
 
 print("=" * 70)
-print("СТАТИЧЕСКИЙ АУДИТ И ВАЛИДАЦИЯ ФАЙЛОВ FANPAY DASHBOARD v2.4")
+print("СТАТИЧЕСКИЙ АУДИТ И ВАЛИДАЦИЯ ФАЙЛОВ FUNPAY DASHBOARD v2.4")
 print(f"Каталог миграций: {mig_dir}")
 print("=" * 70)
 

@@ -1,5 +1,5 @@
 /**
- * Supabase Auth client for the FanPay Hotkeys extension (team backend v2.4).
+ * Supabase Auth client for the FunPay Hotkeys extension (team backend v2.4).
  *
  * The v2.4 database exposes every write RPC to the `authenticated` role only and
  * derives the caller identity strictly from `auth.uid()`. The publishable (anon)
