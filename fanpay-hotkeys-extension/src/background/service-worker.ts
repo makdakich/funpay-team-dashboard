@@ -162,22 +162,44 @@ chrome.alarms?.onAlarm.addListener(async (alarm) => {
     const { client, userId } = await createCloudClient();
     if (!userId) return;
 
-    const shiftState = await loadShiftState();
+    let shiftState = await loadShiftState();
     const stored = await chrome.storage.local.get(['fphk_current_cloud_shift_id']);
     let cloudShiftId = (stored.fphk_current_cloud_shift_id as string | undefined) || null;
     const sellerAccountId = resolveSellerAccountId(state);
 
-    if (shiftState.shiftActive) {
-      if (!cloudShiftId) {
-        cloudShiftId = generateUuid();
+    // Reconcile active shift with Supabase first to prevent overwriting active shifts started on Web
+    const activeCloudRes = await client.getActiveShift(userId);
+    if (activeCloudRes.success) {
+      if (activeCloudRes.shift) {
+        cloudShiftId = activeCloudRes.shift.id;
         await chrome.storage.local.set({ fphk_current_cloud_shift_id: cloudShiftId });
-        await client.startShift({
-          shiftId: cloudShiftId,
-          userId,
-          sellerAccountId,
-          startTimeMs: shiftState.shiftStartTime || Date.now()
-        });
+        if (!shiftState.shiftActive || shiftState.shiftStartTime !== activeCloudRes.shift.startTime) {
+          shiftState = {
+            shiftActive: true,
+            shiftStartTime: activeCloudRes.shift.startTime,
+            currentOperator: shiftState.currentOperator || state.settings.lastOperator || 'Оператор 1',
+            note: shiftState.note
+          };
+          await chrome.storage.local.set({ fphk_shift_state: shiftState });
+        }
+      } else {
+        // Confirmed: Supabase has no active shift
+        if (shiftState.shiftActive) {
+          shiftState = {
+            shiftActive: false,
+            shiftStartTime: null,
+            currentOperator: shiftState.currentOperator || 'Оператор 1'
+          };
+          await chrome.storage.local.set({ fphk_shift_state: shiftState });
+        }
+        if (cloudShiftId) {
+          await chrome.storage.local.remove(['fphk_current_cloud_shift_id']);
+          cloudShiftId = null;
+        }
       }
+    }
+
+    if (shiftState.shiftActive && cloudShiftId) {
       await client.upsertOperatorStatus({
         userId,
         status: 'on_shift',
@@ -185,6 +207,25 @@ chrome.alarms?.onAlarm.addListener(async (alarm) => {
         sellerAccountId,
         appVersion: getAppVersion()
       });
+    } else if (shiftState.shiftActive && !cloudShiftId) {
+      // Local shift was active but not in cloud, create it in cloud
+      cloudShiftId = generateUuid();
+      const started = await client.startShift({
+        shiftId: cloudShiftId,
+        userId,
+        sellerAccountId,
+        startTimeMs: shiftState.shiftStartTime || Date.now()
+      });
+      if (started.success) {
+        await chrome.storage.local.set({ fphk_current_cloud_shift_id: cloudShiftId });
+        await client.upsertOperatorStatus({
+          userId,
+          status: 'on_shift',
+          activeShiftId: cloudShiftId,
+          sellerAccountId,
+          appVersion: getAppVersion()
+        });
+      }
     } else {
       await client.upsertOperatorStatus({
         userId,
@@ -412,53 +453,146 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         }
 
         case 'GET_SHIFT_STATE': {
-          const shiftState = await loadShiftState();
-          sendResponse({ success: true, shiftState });
-          break;
-        }
-
-        case 'START_SHIFT': {
-          const shiftState = await startShift(message.payload?.operatorName, message.payload?.note);
+          let shiftState = await loadShiftState();
           let cloudShiftId: string | null = null;
+          try {
+            const stored = await chrome.storage.local.get(['fphk_current_cloud_shift_id']);
+            cloudShiftId = (stored.fphk_current_cloud_shift_id as string | undefined) || null;
+          } catch {
+            cloudShiftId = null;
+          }
 
           try {
             const state = await loadState();
             if (state.settings.cloudSyncEnabled) {
               const { client, userId } = await createCloudClient();
-              const sellerAccountId = resolveSellerAccountId(state);
+              if (userId) {
+                const activeRes = await client.getActiveShift(userId);
+                if (activeRes.success) {
+                  if (activeRes.shift) {
+                    cloudShiftId = activeRes.shift.id;
+                    await chrome.storage.local.set({ fphk_current_cloud_shift_id: cloudShiftId });
 
-              if (userId && sellerAccountId) {
+                    if (!shiftState.shiftActive || shiftState.shiftStartTime !== activeRes.shift.startTime) {
+                      shiftState = {
+                        shiftActive: true,
+                        shiftStartTime: activeRes.shift.startTime,
+                        currentOperator: shiftState.currentOperator || state.settings.lastOperator || 'Оператор 1',
+                        note: shiftState.note
+                      };
+                      await chrome.storage.local.set({ fphk_shift_state: shiftState });
+                    }
+                  } else {
+                    // Confirmed: Supabase has no active shift for this user
+                    if (shiftState.shiftActive) {
+                      shiftState = {
+                        shiftActive: false,
+                        shiftStartTime: null,
+                        currentOperator: shiftState.currentOperator || 'Оператор 1'
+                      };
+                      await chrome.storage.local.set({ fphk_shift_state: shiftState });
+                    }
+                    if (cloudShiftId) {
+                      await chrome.storage.local.remove(['fphk_current_cloud_shift_id']);
+                      cloudShiftId = null;
+                    }
+                  }
+                }
+              }
+            }
+          } catch (e) {
+            console.warn('[Supabase] GET_SHIFT_STATE sync error:', e);
+          }
+
+          sendResponse({ success: true, shiftState, cloudShiftId });
+          break;
+        }
+
+        case 'START_SHIFT': {
+          const operatorName = (message.payload?.operatorName || message.payload?.operator || '').trim();
+          const note = message.payload?.note;
+          const state = await loadState();
+
+          if (state.settings.cloudSyncEnabled) {
+            let cloudShiftId: string | null = null;
+            let startTimeMs = Date.now();
+
+            try {
+              const { client, userId } = await createCloudClient();
+              if (!userId) {
+                sendResponse({
+                  success: false,
+                  error: 'Для начала смены необходимо войти в облако команды'
+                });
+                break;
+              }
+
+              const sellerAccountId = resolveSellerAccountId(state);
+              if (!sellerAccountId) {
+                sendResponse({
+                  success: false,
+                  error: 'Не определён ID магазина продавца (seller_account_id)'
+                });
+                break;
+              }
+
+              // Check if user already has an active shift in cloud (idempotent / recovery)
+              const existingActive = await client.getActiveShift(userId);
+              if (existingActive.success && existingActive.shift) {
+                cloudShiftId = existingActive.shift.id;
+                startTimeMs = existingActive.shift.startTime;
+              } else {
                 cloudShiftId = generateUuid();
                 const started = await client.startShift({
                   shiftId: cloudShiftId,
                   userId,
                   sellerAccountId,
-                  startTimeMs: shiftState.shiftStartTime || Date.now()
+                  startTimeMs
                 });
 
-                if (started.success) {
-                  await chrome.storage.local.set({ fphk_current_cloud_shift_id: cloudShiftId });
-                  await client.upsertOperatorStatus({
-                    userId,
-                    status: 'on_shift',
-                    activeShiftId: cloudShiftId,
-                    sellerAccountId,
-                    appVersion: getAppVersion()
-                  });
-                } else {
-                  cloudShiftId = null;
-                  console.warn('[Supabase] start shift error:', started.error);
+                if (!started.success) {
+                  // If concurrent race or 23505 unique conflict, verify if shift is now active
+                  const retryActive = await client.getActiveShift(userId);
+                  if (retryActive.success && retryActive.shift) {
+                    cloudShiftId = retryActive.shift.id;
+                    startTimeMs = retryActive.shift.startTime;
+                  } else {
+                    sendResponse({
+                      success: false,
+                      error: started.error || 'Ошибка открытия смены в Supabase'
+                    });
+                    break;
+                  }
                 }
-              } else if (!userId) {
-                console.warn('[Supabase] смена создана только локально: оператор не вошёл в облако команды');
-              } else {
-                console.warn('[Supabase] смена создана только локально: не определён seller_account_id');
               }
+
+              // Commit to local storage only AFTER cloud confirmation
+              await chrome.storage.local.set({ fphk_current_cloud_shift_id: cloudShiftId });
+              let shiftState = await startShift(operatorName || undefined, note);
+              if (shiftState.shiftStartTime !== startTimeMs) {
+                shiftState = { ...shiftState, shiftStartTime: startTimeMs };
+                await chrome.storage.local.set({ fphk_shift_state: shiftState });
+              }
+
+              await client.upsertOperatorStatus({
+                userId,
+                status: 'on_shift',
+                activeShiftId: cloudShiftId,
+                sellerAccountId,
+                appVersion: getAppVersion()
+              });
+
+              sendResponse({ success: true, shiftState, cloudShiftId });
+            } catch (err: unknown) {
+              const msg = err instanceof Error ? err.message : 'Сбой связи с Supabase';
+              console.warn('[Supabase] start shift exception:', err);
+              sendResponse({ success: false, error: msg });
             }
-          } catch (e) {
-            console.warn('[Supabase] start shift sync error:', e);
+          } else {
+            // Local-only mode (cloudSync disabled)
+            const shiftState = await startShift(operatorName || undefined, note);
+            sendResponse({ success: true, shiftState, cloudShiftId: null });
           }
-          sendResponse({ success: true, shiftState, cloudShiftId });
           break;
         }
 
@@ -471,37 +605,58 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
             cloudShiftId = null;
           }
 
+          const state = await loadState();
+
+          if (state.settings.cloudSyncEnabled) {
+            try {
+              const { client, userId } = await createCloudClient();
+              if (userId) {
+                // If cloudShiftId is missing locally, resolve active shift from Supabase
+                if (!cloudShiftId) {
+                  const activeRes = await client.getActiveShift(userId);
+                  if (activeRes.success && activeRes.shift) {
+                    cloudShiftId = activeRes.shift.id;
+                  }
+                }
+
+                if (cloudShiftId) {
+                  const endTimeMs = Date.now();
+                  const finished = await client.finishShift({
+                    shiftId: cloudShiftId,
+                    endTimeMs
+                  });
+                  if (!finished.success) {
+                    console.warn('[Supabase] finish shift error:', finished.error);
+                  }
+
+                  const recalc = await client.recalculateShiftAttributions(cloudShiftId);
+                  if (!recalc.success) {
+                    console.warn('[Supabase] recalculate shift attributions error:', recalc.error);
+                  }
+
+                  await client.upsertOperatorStatus({
+                    userId,
+                    status: 'online',
+                    activeShiftId: null,
+                    sellerAccountId: null,
+                    appVersion: getAppVersion()
+                  });
+                }
+              }
+            } catch (e) {
+              console.warn('[Supabase] stop shift sync error:', e);
+            }
+          }
+
           // The local record reuses the cloud UUID so both stores agree on one identifier.
           const result = await stopShift(message.payload?.note, cloudShiftId ? { id: cloudShiftId } : undefined);
 
-          try {
-            const state = await loadState();
-            if (state.settings.cloudSyncEnabled && result.completedShift && cloudShiftId) {
-              const { client, userId } = await createCloudClient();
-
-              const finished = await client.finishShift({
-                shiftId: cloudShiftId,
-                endTimeMs: result.completedShift.endTime
-              });
-              if (!finished.success) {
-                console.warn('[Supabase] finish shift error:', finished.error);
-              }
-
-              if (userId) {
-                await client.upsertOperatorStatus({
-                  userId,
-                  status: 'online',
-                  activeShiftId: null,
-                  sellerAccountId: null,
-                  appVersion: getAppVersion()
-                });
-              }
-
+          if (cloudShiftId) {
+            try {
               await chrome.storage.local.remove(['fphk_current_cloud_shift_id']);
-            }
-          } catch (e) {
-            console.warn('[Supabase] stop shift sync error:', e);
+            } catch {}
           }
+
           sendResponse({ success: true, ...result, cloudShiftId });
           break;
         }

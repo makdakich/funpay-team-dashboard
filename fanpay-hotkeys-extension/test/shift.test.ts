@@ -12,6 +12,7 @@ import {
 } from '../src/storage/storage.ts';
 import { calculateShiftEarnings } from '../src/shared/utils.ts';
 import { FunPayOrder, CompletedShift } from '../src/shared/types.ts';
+import { SupabaseClient } from '../src/api/supabase.ts';
 
 // 1. Tests for formatDuration
 test('formatDuration formats zero and sub-second durations to 00:00:00', () => {
@@ -384,5 +385,100 @@ test('Protection against double start preserves original shiftStartTime', async 
   assert.equal(redundantStop.completedShift, null);
   const history = await loadShiftHistory();
   assert.equal(history.length, 1);
+});
+
+// 7. SupabaseClient active shift query and attribution recalculation tests
+test('SupabaseClient.getActiveShift correctly parses active cloud shifts, empty states, and errors', async () => {
+  const originalFetch = globalThis.fetch;
+  const client = new SupabaseClient('https://mock.supabase.co', 'mock-key');
+
+  try {
+    // 1. Mock active shift found in Supabase
+    const mockShiftTime = new Date('2026-11-12T14:30:00.000Z').toISOString();
+    globalThis.fetch = async (url: string | URL | Request) => {
+      const urlStr = String(url);
+      if (urlStr.includes('/rest/v1/shifts') && urlStr.includes('status=eq.active')) {
+        return new Response(
+          JSON.stringify([
+            {
+              id: 'shift-cloud-123',
+              user_id: 'user-456',
+              seller_account_id: '4473774',
+              start_time: mockShiftTime,
+              status: 'active'
+            }
+          ]),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        );
+      }
+      return new Response('Not found', { status: 404 });
+    };
+
+    const resActive = await client.getActiveShift('user-456');
+    assert.equal(resActive.success, true);
+    assert.ok(resActive.shift !== null);
+    assert.equal(resActive.shift?.id, 'shift-cloud-123');
+    assert.equal(resActive.shift?.userId, 'user-456');
+    assert.equal(resActive.shift?.sellerAccountId, '4473774');
+    assert.equal(resActive.shift?.startTime, Date.parse(mockShiftTime));
+    assert.equal(resActive.shift?.status, 'active');
+
+    // 2. Mock no active shift found (empty array)
+    globalThis.fetch = async (url: string | URL | Request) => {
+      const urlStr = String(url);
+      if (urlStr.includes('/rest/v1/shifts') && urlStr.includes('status=eq.active')) {
+        return new Response(JSON.stringify([]), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+      return new Response('Not found', { status: 404 });
+    };
+
+    const resEmpty = await client.getActiveShift('user-456');
+    assert.equal(resEmpty.success, true);
+    assert.equal(resEmpty.shift, null);
+
+    // 3. Mock network / HTTP error
+    globalThis.fetch = async () => {
+      return new Response(JSON.stringify({ message: 'Unauthorized' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    };
+
+    const resErr = await client.getActiveShift('user-456');
+    assert.equal(resErr.success, false);
+    assert.equal(resErr.shift, null);
+    assert.ok(resErr.error?.includes('401'));
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('SupabaseClient.recalculateShiftAttributions calls RPC with shift id', async () => {
+  const originalFetch = globalThis.fetch;
+  const client = new SupabaseClient('https://mock.supabase.co', 'mock-key');
+
+  try {
+    let capturedBody: string | null = null;
+    let capturedPath: string | null = null;
+
+    globalThis.fetch = async (url: string | URL | Request, init?: RequestInit) => {
+      capturedPath = String(url);
+      capturedBody = (init?.body as string) || null;
+      return new Response(JSON.stringify(5), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    };
+
+    const res = await client.recalculateShiftAttributions('shift-target-uuid');
+    assert.equal(res.success, true);
+    assert.ok(capturedPath?.includes('/rest/v1/rpc/recalculate_shift_attributions'));
+    assert.deepEqual(JSON.parse(capturedBody!), { p_shift_id: 'shift-target-uuid' });
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });
 

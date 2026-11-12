@@ -394,9 +394,11 @@ class PopupController {
           type: 'START_SHIFT',
           payload: { operatorName }
         });
-        if (res && res.shiftState) {
+        if (res && res.success && res.shiftState) {
           this.shiftState = res.shiftState;
           this.lastCompletedShift = null;
+        } else if (res && !res.success) {
+          alert(`Не удалось начать смену: ${res.error || 'Ошибка Supabase'}`);
         }
       }
     } catch (err: unknown) {

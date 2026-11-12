@@ -154,3 +154,190 @@ export async function loadShiftById(shiftId: string, client: DbClient = supabase
   if (error) throw error;
   return (data as unknown as Shift | null) ?? null;
 }
+
+export interface StartShiftInput {
+  sellerAccountId: string;
+  userId?: string;
+}
+
+export interface ActiveTeamShift {
+  shift: Shift;
+  operatorName: string;
+}
+
+/** Получить все текущие активные смены команды (для обзора руководителя). */
+export async function getActiveShifts(client: DbClient = supabase): Promise<ActiveTeamShift[]> {
+  const [shiftsRes, profilesRes] = await Promise.all([
+    client
+      .from('shifts')
+      .select(SHIFT_COLUMNS)
+      .eq('status', 'active')
+      .order('start_time', { ascending: false }),
+    client
+      .from('profiles')
+      .select(PROFILE_COLUMNS)
+  ]);
+  if (shiftsRes.error) throw shiftsRes.error;
+  if (profilesRes.error) throw profilesRes.error;
+
+  const names = new Map<string, string>();
+  for (const p of (profilesRes.data ?? []) as unknown as Array<{ user_id: string; display_name: string }>) {
+    names.set(p.user_id, p.display_name);
+  }
+
+  return ((shiftsRes.data ?? []) as unknown as Shift[]).map(shift => ({
+    shift,
+    operatorName: names.get(shift.user_id) ?? 'Участник команды'
+  }));
+}
+
+/** Получить текущую открытую смену пользователя (если есть). */
+export async function getActiveShiftForUser(userId: string, client: DbClient = supabase): Promise<Shift | null> {
+  const { data, error } = await client
+    .from('shifts')
+    .select(SHIFT_COLUMNS)
+    .eq('user_id', userId)
+    .eq('status', 'active')
+    .maybeSingle();
+  if (error) throw error;
+  return (data as unknown as Shift | null) ?? null;
+}
+
+/**
+ * Открыть новую смену оператора.
+ * Защищена от гонок и повторных отправок: если активная смена уже существует,
+ * возвращает её вместо выброса ошибки дублирования.
+ */
+export async function startShift(
+  inputOrSellerAccountId: string | StartShiftInput,
+  client: DbClient = supabase
+): Promise<Shift> {
+  const sellerAccountId =
+    typeof inputOrSellerAccountId === 'string'
+      ? inputOrSellerAccountId
+      : inputOrSellerAccountId.sellerAccountId;
+  let userId =
+    typeof inputOrSellerAccountId === 'object'
+      ? inputOrSellerAccountId.userId
+      : undefined;
+
+  if (!userId) {
+    const authRes = await client.auth.getUser();
+    userId = authRes.data?.user?.id;
+    if (!userId) {
+      throw new Error('Пользователь не авторизован');
+    }
+  }
+
+  // Проверка существующей активной смены (идемпотентность)
+  const existing = await getActiveShiftForUser(userId, client);
+  if (existing) {
+    return existing;
+  }
+
+  const newShiftPayload = {
+    user_id: userId,
+    seller_account_id: sellerAccountId,
+    status: 'active',
+    start_time: new Date().toISOString()
+  };
+
+  const { data, error } = await client
+    .from('shifts')
+    .insert(newShiftPayload)
+    .select(SHIFT_COLUMNS)
+    .single();
+
+  if (error) {
+    // Если произошла гонка между вкладками/расширением и сработал idx_shifts_one_active_per_user (23505)
+    if ((error as { code?: string })?.code === '23505') {
+      const active = await getActiveShiftForUser(userId, client);
+      if (active) return active;
+    }
+    throw error;
+  }
+
+  const shift = data as unknown as Shift;
+
+  // Синхронизация статуса присутствия: переход в on_shift
+  await client
+    .from('operator_status')
+    .upsert({
+      user_id: userId,
+      status: 'on_shift',
+      active_shift_id: shift.id,
+      current_seller_account_id: sellerAccountId,
+      last_heartbeat_at: new Date().toISOString()
+    });
+
+  return shift;
+}
+
+/**
+ * Закрыть смену оператора.
+ * Триггер trg_protect_shift_fields на стороне БД автоматически зафиксирует
+ * end_time и рассчитает duration_seconds.
+ * Функция обновляет статус оператора в 'online' и запускает пересчёт атрибуции заказов.
+ */
+export async function finishShift(shiftId: string, client: DbClient = supabase): Promise<Shift> {
+  const { data, error } = await client
+    .from('shifts')
+    .update({
+      status: 'completed',
+      end_time: new Date().toISOString()
+    })
+    .eq('id', shiftId)
+    .select(SHIFT_COLUMNS)
+    .single();
+
+  let shift: Shift;
+
+  if (error) {
+    // Обработка гонки: если смена уже закрыта параллельным сеансом (например, расширением)
+    const existing = await loadShiftById(shiftId, client);
+    if (existing && existing.status === 'completed') {
+      shift = existing;
+    } else {
+      throw error;
+    }
+  } else {
+    shift = data as unknown as Shift;
+  }
+
+  // Сброс статуса присутствия оператора в 'online'
+  await client
+    .from('operator_status')
+    .upsert({
+      user_id: shift.user_id,
+      status: 'online',
+      active_shift_id: null,
+      current_seller_account_id: null,
+      last_heartbeat_at: new Date().toISOString()
+    });
+
+  // Запуск пересчёта атрибуции заказов для закрытой смены
+  try {
+    await recalculateShiftAttributions(shiftId, client);
+  } catch (err) {
+    console.warn('Failed to recalculate shift attributions on finish:', err);
+  }
+
+  return shift;
+}
+
+/**
+ * Вызов RPC recalculate_shift_attributions для пересчёта заказов смены.
+ */
+export async function recalculateShiftAttributions(
+  shiftId: string,
+  client: DbClient = supabase
+): Promise<number> {
+  const { data, error } = await client.rpc('recalculate_shift_attributions', {
+    p_shift_id: shiftId
+  });
+  if (error) throw error;
+  if (Array.isArray(data) && data.length > 0) {
+    return Number((data[0] as { updated_orders_count?: number }).updated_orders_count ?? 0);
+  }
+  return Number(data ?? 0);
+}

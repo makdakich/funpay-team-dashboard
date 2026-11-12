@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { groupOrdersByShift, shiftDurationSeconds } from './metrics';
+import { formatDurationHms, groupOrdersByShift, shiftDurationSeconds } from './metrics';
 
 describe('shift turnover metrics', () => {
   it('groups closed orders by shift and keeps currencies separated', () => {
@@ -65,3 +65,26 @@ describe('shift duration', () => {
     expect(shiftDurationSeconds(shift)).toBe(0);
   });
 });
+
+describe('formatDurationHms', () => {
+  it('formats zero seconds as 00:00:00', () => {
+    expect(formatDurationHms(0)).toBe('00:00:00');
+  });
+
+  it('formats seconds with zero-padding', () => {
+    expect(formatDurationHms(5)).toBe('00:00:05');
+    expect(formatDurationHms(65)).toBe('00:01:05');
+    expect(formatDurationHms(3665)).toBe('01:01:05');
+  });
+
+  it('formats multi-hour shifts correctly', () => {
+    expect(formatDurationHms(36000)).toBe('10:00:00');
+    expect(formatDurationHms(9872)).toBe('02:44:32');
+  });
+
+  it('handles negative or invalid values gracefully', () => {
+    expect(formatDurationHms(-10)).toBe('00:00:00');
+    expect(formatDurationHms(NaN)).toBe('00:00:00');
+  });
+});
+

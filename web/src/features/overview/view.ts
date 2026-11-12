@@ -187,8 +187,6 @@ export function buildOverview(data: OverviewData): HTMLElement {
 
   function updateExecutiveKpisUI() {
     const k = computeExecutiveKpis(orders, activeCurrency, sharePercent);
-    const totalTurnover = data.turnoverByCurrency[activeCurrency] ?? 0;
-    const cleanShareTotal = totalTurnover * (sharePercent / 100);
 
     // Current FunPay balance on the account
     const rawAccountBalance = data.balancesByCurrency?.[activeCurrency];

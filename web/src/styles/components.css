@@ -1331,3 +1331,223 @@ td:last-child {
   .filter-bar { grid-template-columns: 1fr; }
   .segmented { width: 100%; }
 }
+
+/* ==========================================================================
+   Active Shift Hero Card, Ticker & Team Overview
+   ========================================================================== */
+.active-shift-card {
+  position: relative;
+  background: linear-gradient(135deg, rgb(15 23 42 / 95%), rgb(11 15 25 / 98%));
+  border: 1px solid rgb(16 185 129 / 35%);
+  box-shadow: 0 10px 30px rgb(0 0 0 / 40%), 0 0 25px rgb(16 185 129 / 10%);
+  border-radius: var(--radius-lg, 14px);
+  padding: 24px 28px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.active-shift-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, #10b981, #3b82f6, #10b981);
+  background-size: 200% 100%;
+  animation: shift-glow 4s linear infinite;
+}
+
+@keyframes shift-glow {
+  0% { background-position: 0% 50%; }
+  100% { background-position: 200% 50%; }
+}
+
+.active-shift-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.active-shift-identity {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.active-shift-badge-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: rgb(16 185 129 / 15%);
+  border: 1px solid rgb(16 185 129 / 30%);
+  color: #6ee7b7;
+  padding: 4px 12px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.pulse-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #10b981;
+  box-shadow: 0 0 10px #10b981;
+  animation: pulse-ring 1.8s cubic-bezier(0.455, 0.03, 0.515, 0.955) infinite;
+}
+
+@keyframes pulse-ring {
+  0% { transform: scale(0.9); opacity: 1; box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+  70% { transform: scale(1.1); opacity: 0.9; box-shadow: 0 0 0 8px rgba(16, 185, 129, 0); }
+  100% { transform: scale(0.9); opacity: 1; box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+}
+
+.active-shift-main {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 32px;
+}
+
+.active-shift-clock-box {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.active-shift-clock {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: clamp(32px, 4vw, 44px);
+  font-weight: 800;
+  color: #6ee7b7;
+  letter-spacing: 0.06em;
+  line-height: 1;
+  text-shadow: 0 0 20px rgb(16 185 129 / 25%);
+}
+
+.active-shift-clock-label {
+  font-size: 11.5px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.active-shift-stats {
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.active-shift-stat-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 14px;
+  background: rgb(255 255 255 / 3%);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.active-shift-stat-label {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.active-shift-stat-value {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.active-shift-stat-share {
+  color: #6ee7b7;
+}
+
+.active-shift-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* Team Active Shifts Strip for Owners */
+.team-active-shifts-panel {
+  background: rgb(15 23 42 / 70%);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md, 10px);
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.team-active-shifts-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.team-active-shifts-panel-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.team-active-shifts-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 12px;
+}
+
+.team-active-shift-chip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: rgb(255 255 255 / 4%);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 14px;
+}
+
+.team-active-shift-info {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.team-active-shift-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: #f8fafc;
+}
+
+.team-active-shift-sub {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.team-active-shift-timer {
+  font-family: ui-monospace, monospace;
+  font-weight: 700;
+  font-size: 14px;
+  color: #6ee7b7;
+}
+
+@media (max-width: 860px) {
+  .active-shift-main {
+    grid-template-columns: 1fr;
+    gap: 18px;
+  }
+  .active-shift-actions {
+    justify-content: flex-start;
+  }
+}
+

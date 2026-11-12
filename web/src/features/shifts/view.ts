@@ -2,7 +2,7 @@ import type { CurrencyTotals, Order, Profile, SellerAccount, Shift } from '@/typ
 import { buildHref } from '@/app/router';
 import {
   badge, createButton, createEmptyState, createNotice, createSegmented, createSelect, createSkeleton,
-  element, formatDate, formatDateTimeFull
+  element, formatDate, formatDateTimeFull, icon, initialsOf
 } from '@/components/ui';
 import { createPageShell, createPanel, createTable } from '@/components/page';
 import { getErrorMessage } from '@/lib/errors';
@@ -11,35 +11,53 @@ import {
 } from '@/lib/money';
 import { loadSellerAccounts, loadTeamProfiles } from '@/lib/reference-data';
 import { PERIOD_PRESETS, addDays, formatDurationSeconds, dayKey, resolvePreset, startOfDay, type PeriodPreset } from '@/lib/time';
+import { supabase } from '@/lib/supabase';
 import {
-  loadShiftById, loadShiftHistory, loadShiftOrders,
-  type ShiftFilters, type ShiftHistory, type ShiftHistoryItem
+  finishShift, getActiveShiftForUser, getActiveShifts, loadShiftById, loadShiftHistory, loadShiftOrders,
+  startShift,
+  type ActiveTeamShift, type ShiftFilters, type ShiftHistory, type ShiftHistoryItem
 } from './data';
-import { shiftDurationSeconds } from './metrics';
+import { formatDurationHms, shiftDurationSeconds } from './metrics';
 
 const PRESET_ORDER: PeriodPreset[] = ['today', 'last7', 'last30', 'month', 'custom'];
-const FAST_REFRESH_MS = 30_000;
 
 export interface ShiftPageOptions {
   detailShiftId: string | null;
+  currentProfile?: Profile | null;
 }
 
 export class ShiftHistoryPage {
   private readonly container: HTMLElement;
   private readonly detailShiftId: string | null;
+  private readonly currentProfile: Profile | null;
   private filters: ShiftFilters & { preset: PeriodPreset; fromInput: string; toInput: string };
   private profiles: Profile[] = [];
   private shops: SellerAccount[] = [];
+  private activeShift: Shift | null = null;
+  private activeShiftTurnover: CurrencyTotals = { RUB: 0, USD: 0, EUR: 0, KZT: 0 };
+  private activeShiftShare: CurrencyTotals = { RUB: 0, USD: 0, EUR: 0, KZT: 0 };
+  private activeShiftOrdersCount = 0;
+  private teamActiveShifts: ActiveTeamShift[] = [];
   private summaryHost: HTMLElement | null = null;
   private dataHost: HTMLElement | null = null;
+  private activeShiftHost: HTMLElement | null = null;
+  private teamActiveShiftsHost: HTMLElement | null = null;
+  private realtimeStateLabel: HTMLElement | null = null;
+  private shiftActionBtn: HTMLButtonElement | null = null;
+  private modalHost: HTMLElement | null = null;
+  private liveClockEl: HTMLElement | null = null;
   private realtimeCells: Array<{ node: HTMLElement; shift: Shift }> = [];
+  private teamLiveCells: Array<{ node: HTMLElement; shift: Shift }> = [];
   private liveTimer: number | null = null;
+  private channel: ReturnType<typeof supabase.channel> | null = null;
   private destroyed = false;
   private loading = false;
 
   constructor(container: HTMLElement, options: ShiftPageOptions) {
     this.container = container;
     this.detailShiftId = options.detailShiftId;
+    this.currentProfile = options.currentProfile ?? null;
+
     const today = startOfDay(new Date());
     const from = addDays(today, -6);
     this.filters = {
@@ -56,15 +74,40 @@ export class ShiftHistoryPage {
     else this.mountList();
   }
 
+  private isOwner(): boolean {
+    return this.currentProfile?.role === 'owner';
+  }
+
+  private isCreator(): boolean {
+    return Boolean(this.currentProfile?.is_creator);
+  }
+
   private mountList(): void {
     const shell = createPageShell({
       eyebrow: 'КОМАНДА · СМЕНЫ',
       title: 'История смен',
       description: 'Смены команды, длительность и подтверждённый оборот закрытых заказов по каждой смене.'
     });
+
+    // Realtime статус-индикатор
+    this.realtimeStateLabel = element('span', 'realtime-indicator');
+    this.realtimeStateLabel.append(element('span', 'realtime-dot'), document.createTextNode('Подключаем realtime…'));
+
+    // Кнопка управления сменой ("+ Начать смену" / "⏹ Завершить смену")
+    this.shiftActionBtn = createButton('+ Начать смену', 'button button-primary', 'clock');
+    this.shiftActionBtn.addEventListener('click', () => {
+      if (this.activeShift) this.openFinishShiftModal(this.activeShift);
+      else this.openStartShiftModal();
+    });
+
     const refresh = createButton('Обновить', 'button button-secondary', 'refresh');
     refresh.addEventListener('click', () => void this.refresh());
-    shell.controls.append(refresh);
+
+    shell.controls.append(this.realtimeStateLabel, this.shiftActionBtn, refresh);
+
+    // Контейнеры для активной смены и обзора команды
+    this.activeShiftHost = element('div', 'active-shift-host');
+    this.teamActiveShiftsHost = element('div', 'team-active-shifts-host');
 
     const filtersPanel = createPanel('Фильтры', 'Оборот считается по связи orders.shift_id — заказ попадает максимум в одну смену');
     filtersPanel.body.append(this.buildFilterBar());
@@ -75,7 +118,15 @@ export class ShiftHistoryPage {
     this.dataHost.append(createSkeleton(6));
     dataPanel.body.append(this.summaryHost, this.dataHost);
 
-    shell.content.append(filtersPanel.panel, dataPanel.panel);
+    this.modalHost = element('div', 'modal-host');
+
+    shell.content.append(
+      this.activeShiftHost,
+      this.teamActiveShiftsHost,
+      filtersPanel.panel,
+      dataPanel.panel,
+      this.modalHost
+    );
     this.container.replaceChildren(shell.page);
     void this.bootstrap();
   }
@@ -92,8 +143,370 @@ export class ShiftHistoryPage {
         this.dataHost.replaceChildren(createNotice('error', 'Не удалось загрузить участников: ' + getErrorMessage(error)));
       }
     }
+
+    await this.syncActiveShifts();
     await this.refresh();
+    this.subscribeRealtime();
     this.startLiveTimer();
+  }
+
+  private subscribeRealtime(): void {
+    this.channel = supabase
+      .channel('shifts-live-sync')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'shifts' }, () => {
+        void this.syncActiveShifts();
+        void this.refresh();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'operator_status' }, () => {
+        void this.syncActiveShifts();
+      })
+      .subscribe(status => {
+        if (this.destroyed) return;
+        this.setRealtimeLabel(status === 'SUBSCRIBED');
+      });
+  }
+
+  private setRealtimeLabel(available: boolean): void {
+    if (!this.realtimeStateLabel) return;
+    this.realtimeStateLabel.classList.toggle('realtime-active', available);
+    this.realtimeStateLabel.replaceChildren(
+      element('span', 'realtime-dot'),
+      document.createTextNode(available ? 'Realtime активно' : 'Обновление каждые 30 сек')
+    );
+  }
+
+  private async syncActiveShifts(): Promise<void> {
+    if (this.destroyed) return;
+    try {
+      const userId = this.currentProfile?.user_id;
+      const [ownShift, teamShifts] = await Promise.all([
+        userId ? getActiveShiftForUser(userId) : Promise.resolve(null),
+        this.isOwner() ? getActiveShifts() : Promise.resolve([])
+      ]);
+      if (this.destroyed) return;
+      this.activeShift = ownShift;
+      this.teamActiveShifts = teamShifts;
+
+      if (ownShift) {
+        try {
+          const orders = await loadShiftOrders(ownShift.id);
+          const closed = orders.filter(o => o.status === 'closed');
+          const cents = emptyCents();
+          for (const o of closed) addAmountCents(cents, o.amount, o.currency);
+          this.activeShiftTurnover = centsToTotals(cents);
+          this.activeShiftShare = centsToTotals(shareCents(cents));
+          this.activeShiftOrdersCount = closed.length;
+        } catch {
+          // ignore metrics error
+        }
+      }
+
+      this.updateHeaderActionButton();
+      this.renderActiveShiftCard();
+      if (this.isOwner()) this.renderTeamActiveShifts();
+    } catch (err) {
+      console.warn('Failed to sync active shifts:', err);
+    }
+  }
+
+  private updateHeaderActionButton(): void {
+    if (!this.shiftActionBtn) return;
+    this.shiftActionBtn.replaceChildren();
+    if (this.activeShift) {
+      this.shiftActionBtn.className = 'button button-danger-subtle';
+      this.shiftActionBtn.append(icon('clock'), document.createTextNode('Завершить смену'));
+    } else {
+      this.shiftActionBtn.className = 'button button-primary';
+      this.shiftActionBtn.append(icon('clock'), document.createTextNode('+ Начать смену'));
+    }
+  }
+
+  private renderActiveShiftCard(): void {
+    if (!this.activeShiftHost) return;
+    if (!this.activeShift) {
+      this.activeShiftHost.replaceChildren();
+      this.liveClockEl = null;
+      return;
+    }
+
+    const shift = this.activeShift;
+    const card = element('article', 'panel active-shift-card');
+
+    const top = element('div', 'active-shift-top');
+    const identity = element('div', 'active-shift-identity');
+    const badgeWrap = element('div', 'active-shift-badge-wrap');
+    badgeWrap.append(element('span', 'pulse-dot'), document.createTextNode('Активная смена'));
+    const opInitials = initialsOf(this.currentProfile?.display_name || 'Оператор');
+    const avatar = element('span', 'profile-avatar', [opInitials]);
+    avatar.style.width = '28px';
+    avatar.style.height = '28px';
+    avatar.style.fontSize = '11px';
+    const opMeta = element('strong', '', [this.currentProfile?.display_name || 'Оператор']);
+    identity.append(badgeWrap, avatar, opMeta);
+
+    const shopMeta = element('span', 'environment-chip', [
+      element('span', 'environment-dot'),
+      `Магазин: ${this.shopLabel(shift.seller_account_id)} (${shift.seller_account_id})`
+    ]);
+    top.append(identity, shopMeta);
+
+    const main = element('div', 'active-shift-main');
+    const clockBox = element('div', 'active-shift-clock-box');
+    const clock = element('div', 'active-shift-clock tabular-nums', [
+      formatDurationHms(shiftDurationSeconds(shift))
+    ]);
+    this.liveClockEl = clock;
+    const clockLabel = element('span', 'active-shift-clock-label', [
+      `Начало: ${formatDate(shift.start_time)} · Длительность (HH:MM:SS)`
+    ]);
+    clockBox.append(clock, clockLabel);
+
+    const stats = element('div', 'active-shift-stats');
+    const stat1 = element('div', 'active-shift-stat-item', [
+      element('span', 'active-shift-stat-label', ['Заказов в смене']),
+      element('strong', 'active-shift-stat-value tabular-nums', [String(this.activeShiftOrdersCount)])
+    ]);
+    const stat2 = element('div', 'active-shift-stat-item', [
+      element('span', 'active-shift-stat-label', ['Оборот (closed)']),
+      element('strong', 'active-shift-stat-value tabular-nums', [
+        totalsAreEmpty(this.activeShiftTurnover) ? '0 ₽' : formatCurrencyTotals(this.activeShiftTurnover)
+      ])
+    ]);
+    const stat3 = element('div', 'active-shift-stat-item', [
+      element('span', 'active-shift-stat-label', ['Доля оператора 10%']),
+      element('strong', 'active-shift-stat-value active-shift-stat-share tabular-nums', [
+        totalsAreEmpty(this.activeShiftShare) ? '0 ₽' : formatCurrencyTotals(this.activeShiftShare)
+      ])
+    ]);
+    stats.append(stat1, stat2, stat3);
+
+    const actions = element('div', 'active-shift-actions');
+    const finishBtn = createButton('Завершить смену', 'button button-danger-subtle', 'clock');
+    finishBtn.addEventListener('click', () => this.openFinishShiftModal(shift));
+    actions.append(finishBtn);
+
+    main.append(clockBox, stats, actions);
+    card.append(top, main);
+    this.activeShiftHost.replaceChildren(card);
+  }
+
+  private renderTeamActiveShifts(): void {
+    if (!this.teamActiveShiftsHost) return;
+    this.teamLiveCells = [];
+    if (this.teamActiveShifts.length === 0) {
+      this.teamActiveShiftsHost.replaceChildren();
+      return;
+    }
+
+    const panel = element('div', 'team-active-shifts-panel');
+    const header = element('div', 'team-active-shifts-panel-header');
+    header.append(
+      element('span', 'team-active-shifts-panel-title', [
+        `Смены команды онлайн (${this.teamActiveShifts.length})`
+      ]),
+      element('span', 'realtime-indicator realtime-active', [
+        element('span', 'realtime-dot'),
+        document.createTextNode('Активно сейчас')
+      ])
+    );
+
+    const grid = element('div', 'team-active-shifts-grid');
+    for (const item of this.teamActiveShifts) {
+      const chip = element('div', 'team-active-shift-chip');
+      const info = element('div', 'team-active-shift-info');
+      info.append(
+        element('span', 'team-active-shift-name', [item.operatorName]),
+        element('span', 'team-active-shift-sub', [
+          `${this.shopLabel(item.shift.seller_account_id)} · с ${formatDate(item.shift.start_time)}`
+        ])
+      );
+
+      const timer = element('span', 'team-active-shift-timer tabular-nums', [
+        formatDurationHms(shiftDurationSeconds(item.shift))
+      ]);
+      this.teamLiveCells.push({ node: timer, shift: item.shift });
+
+      chip.append(info, timer);
+      grid.append(chip);
+    }
+
+    panel.append(header, grid);
+    this.teamActiveShiftsHost.replaceChildren(panel);
+  }
+
+  private openStartShiftModal(): void {
+    if (!this.modalHost) return;
+    const existing = document.getElementById('modal-shift-start');
+    if (existing) existing.remove();
+
+    const overlay = element('div', 'modal-overlay');
+    overlay.id = 'modal-shift-start';
+
+    const dialog = element('div', 'modal-dialog');
+    dialog.style.maxWidth = '460px';
+
+    const header = element('div', 'modal-header');
+    header.append(
+      element('h3', '', ['Начать рабочую смену']),
+      element('p', 'modal-subtitle', ['Фиксация начала смены для привязки входящих заказов'])
+    );
+
+    const form = element('form', 'modal-form');
+
+    // Operator info
+    const opGroup = element('div', 'form-group');
+    const opLabel = element('label', 'form-label', ['Оператор:']);
+    const opValue = element('div', 'member-identity');
+    const opAvatar = element('span', 'member-avatar', [initialsOf(this.currentProfile?.display_name || 'Оператор')]);
+    const opName = element('strong', '', [this.currentProfile?.display_name || 'Оператор']);
+    const roleKind = this.isOwner() ? 'badge-owner' : 'badge-operator';
+    const roleName = this.isCreator() ? 'Создатель' : (this.isOwner() ? 'Руководитель' : 'Оператор');
+    const opRole = element('span', 'badge ' + roleKind, [roleName]);
+    opValue.append(opAvatar, opName, opRole);
+    opGroup.append(opLabel, opValue);
+
+    // Store selector
+    const storeGroup = element('div', 'form-group');
+    const storeLabel = element('label', 'form-label', ['Магазин FunPay:']);
+    const activeShops = this.shops.filter(s => s.is_active);
+    const storeSelect = element('select', 'select-input') as HTMLSelectElement;
+    for (const shop of activeShops) {
+      const opt = element('option', '', [`${shop.account_name} (${shop.seller_account_id})`]);
+      opt.value = shop.seller_account_id;
+      storeSelect.append(opt);
+    }
+    if (activeShops.some(s => s.seller_account_id === '4473774')) {
+      storeSelect.value = '4473774';
+    } else if (activeShops.length > 0) {
+      storeSelect.value = activeShops[0].seller_account_id;
+    }
+    storeGroup.append(storeLabel, storeSelect);
+
+    const infoNotice = createNotice(
+      'info',
+      'После запуска смены все закрытые заказы в выбранном магазине будут автоматически закрепляться за вами для начисления 10% доли выручки.'
+    );
+
+    const errorNotice = element('div', 'notice notice-danger');
+    errorNotice.style.display = 'none';
+
+    form.append(opGroup, storeGroup, infoNotice, errorNotice);
+
+    const actions = element('div', 'modal-actions');
+    const cancelBtn = createButton('Отмена', 'button button-secondary');
+    cancelBtn.type = 'button';
+    cancelBtn.addEventListener('click', () => overlay.remove());
+
+    const submitBtn = createButton('Подтвердить и начать', 'button button-primary', 'clock');
+    submitBtn.type = 'submit';
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const sellerAccountId = storeSelect.value;
+      if (!sellerAccountId) {
+        errorNotice.textContent = 'Выберите магазин для смены';
+        errorNotice.style.display = 'block';
+        return;
+      }
+
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Открытие смены…';
+      errorNotice.style.display = 'none';
+
+      try {
+        await startShift({
+          sellerAccountId,
+          userId: this.currentProfile?.user_id
+        });
+        overlay.remove();
+        await this.syncActiveShifts();
+        await this.refresh();
+      } catch (err) {
+        submitBtn.disabled = false;
+        submitBtn.replaceChildren(icon('clock'), document.createTextNode('Подтвердить и начать'));
+        errorNotice.textContent = getErrorMessage(err);
+        errorNotice.style.display = 'block';
+      }
+    });
+
+    actions.append(cancelBtn, submitBtn);
+    form.append(actions);
+    dialog.append(header, form);
+    overlay.append(dialog);
+    this.modalHost.replaceChildren(overlay);
+  }
+
+  private openFinishShiftModal(shift: Shift): void {
+    if (!this.modalHost) return;
+    const existing = document.getElementById('modal-shift-finish');
+    if (existing) existing.remove();
+
+    const overlay = element('div', 'modal-overlay');
+    overlay.id = 'modal-shift-finish';
+
+    const dialog = element('div', 'modal-dialog');
+    dialog.style.maxWidth = '500px';
+
+    const header = element('div', 'modal-header');
+    header.append(
+      element('h3', '', ['Завершить рабочую смену']),
+      element('p', 'modal-subtitle', ['Подведение итогов и фиксация времени окончания'])
+    );
+
+    const form = element('form', 'modal-form');
+
+    const durationSec = shiftDurationSeconds(shift);
+    const kpiBox = element('div', 'stat-grid');
+    kpiBox.style.gridTemplateColumns = 'repeat(2, 1fr)';
+    kpiBox.append(
+      this.statCard('Длительность смены', formatDurationHms(durationSec), `с ${formatDate(shift.start_time)}`),
+      this.statCard('Магазин', this.shopLabel(shift.seller_account_id), shift.seller_account_id),
+      this.statCard('Закрытых заказов', String(this.activeShiftOrdersCount), 'в текущей смене'),
+      this.statCard('Доля оператора 10%', totalsAreEmpty(this.activeShiftShare) ? '0 ₽' : formatCurrencyTotals(this.activeShiftShare), 'к выплате')
+    );
+
+    const warnNotice = createNotice(
+      'info',
+      'После закрытия новые заказы перестанут автоматически привязываться к вашей смене. Система выполнит пересчёт атрибуции заказов.'
+    );
+
+    const errorNotice = element('div', 'notice notice-danger');
+    errorNotice.style.display = 'none';
+
+    form.append(kpiBox, warnNotice, errorNotice);
+
+    const actions = element('div', 'modal-actions');
+    const cancelBtn = createButton('Продолжить работу', 'button button-secondary');
+    cancelBtn.type = 'button';
+    cancelBtn.addEventListener('click', () => overlay.remove());
+
+    const submitBtn = createButton('Завершить смену', 'button button-danger-subtle', 'check');
+    submitBtn.type = 'submit';
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Завершение и пересчёт…';
+      errorNotice.style.display = 'none';
+
+      try {
+        await finishShift(shift.id);
+        overlay.remove();
+        await this.syncActiveShifts();
+        await this.refresh();
+      } catch (err) {
+        submitBtn.disabled = false;
+        submitBtn.replaceChildren(icon('check'), document.createTextNode('Завершить смену'));
+        errorNotice.textContent = getErrorMessage(err);
+        errorNotice.style.display = 'block';
+      }
+    });
+
+    actions.append(cancelBtn, submitBtn);
+    form.append(actions);
+    dialog.append(header, form);
+    overlay.append(dialog);
+    this.modalHost.replaceChildren(overlay);
   }
 
   private buildFilterBar(): HTMLElement {
@@ -247,7 +660,6 @@ export class ShiftHistoryPage {
       this.statCard('Подтверждённый оборот', totalsAreEmpty(turnover) ? '—' : formatCurrencyTotals(turnover), 'только status = closed, валюты раздельно'),
       this.statCard('Доля операторов · 10%', totalsAreEmpty(share) ? '—' : formatCurrencyTotals(share), 'по закрытым заказам с оператором')
     );
-
     this.summaryHost.replaceChildren(summary);
     if (history.truncated) {
       this.summaryHost.append(createNotice('info', 'Показаны последние ' + history.items.length + ' смен. Сузьте период, чтобы увидеть более ранние записи.'));
@@ -300,13 +712,29 @@ export class ShiftHistoryPage {
     operatorCell.append(element('span', 'cell-sub', [item.shift.status === 'active' ? 'Активная смена' : 'Завершена']));
 
     const durationCell = element('td', 'tabular-nums');
-    durationCell.textContent = formatDurationSeconds(shiftDurationSeconds(item.shift));
-    if (item.shift.status === 'active') this.realtimeCells.push({ node: durationCell, shift: item.shift });
+    if (item.shift.status === 'active') {
+      durationCell.textContent = formatDurationHms(shiftDurationSeconds(item.shift));
+      durationCell.style.color = '#6ee7b7';
+      durationCell.style.fontFamily = 'ui-monospace, monospace';
+      durationCell.style.fontWeight = '600';
+      this.realtimeCells.push({ node: durationCell, shift: item.shift });
+    } else {
+      durationCell.textContent = formatDurationSeconds(shiftDurationSeconds(item.shift));
+    }
 
     const statusCell = element('td');
-    statusCell.append(item.shift.status === 'active'
-      ? badge('Активна', 'active')
-      : badge('Завершена', 'neutral'));
+    if (item.shift.status === 'active') {
+      const activeBadge = element('span', 'badge badge-active', [
+        element('span', 'pulse-dot'),
+        document.createTextNode('Активна')
+      ]);
+      activeBadge.style.display = 'inline-flex';
+      activeBadge.style.alignItems = 'center';
+      activeBadge.style.gap = '6px';
+      statusCell.append(activeBadge);
+    } else {
+      statusCell.append(badge('Завершена', 'neutral'));
+    }
 
     const orderCell = element('td', 'tabular-nums', [String(item.orderCount)]);
     const turnoverCell = element('td', 'numeric-cell', [totalsAreEmpty(item.turnover) ? '—' : formatCurrencyTotals(item.turnover, '—')]);
@@ -342,17 +770,19 @@ export class ShiftHistoryPage {
     back.addEventListener('click', () => { window.location.hash = buildHref('shifts'); });
     shell.controls.append(back);
 
+    this.modalHost = element('div', 'modal-host');
+
     const panel = createPanel('Детали смены');
     const host = element('div');
     host.append(createSkeleton(5));
     panel.body.append(host);
-    shell.content.append(panel.panel);
+    shell.content.append(panel.panel, this.modalHost);
     this.container.replaceChildren(shell.page);
-    void this.loadDetail(host);
+    void this.loadDetail(host, shell.controls);
     this.startLiveTimer();
   }
 
-  private async loadDetail(host: HTMLElement): Promise<void> {
+  private async loadDetail(host: HTMLElement, controlsHost: HTMLElement): Promise<void> {
     if (!this.detailShiftId) return;
     try {
       const shift = await loadShiftById(this.detailShiftId);
@@ -361,6 +791,14 @@ export class ShiftHistoryPage {
         host.replaceChildren(createEmptyState('Смена не найдена', 'Возможно, ссылка устарела или запись удалена.'));
         return;
       }
+
+      // Если смена активна и принадлежит текущему пользователю или пользователь руководитель
+      if (shift.status === 'active' && (shift.user_id === this.currentProfile?.user_id || this.isOwner())) {
+        const finishBtn = createButton('Завершить смену', 'button button-danger-subtle', 'clock');
+        finishBtn.addEventListener('click', () => this.openFinishShiftModal(shift));
+        controlsHost.append(finishBtn);
+      }
+
       const [orders, profiles] = await Promise.all([loadShiftOrders(shift.id), loadTeamProfiles()]);
       if (this.destroyed) return;
       host.replaceChildren(this.buildDetail(shift, orders, profiles));
@@ -390,10 +828,15 @@ export class ShiftHistoryPage {
     addInfo('Статус', shift.status === 'active' ? 'Активна' : 'Завершена');
     addInfo('Начало', formatDateTimeFull(shift.start_time));
     addInfo('Окончание', shift.end_time ? formatDateTimeFull(shift.end_time) : 'Ещё не закрыта');
-    addInfo('Длительность', formatDurationSeconds(shiftDurationSeconds(shift)));
+    addInfo('Длительность', formatDurationHms(shiftDurationSeconds(shift)));
     if (shift.status === 'active') {
       const durationValue = info.lastElementChild;
-      if (durationValue instanceof HTMLElement) this.realtimeCells.push({ node: durationValue, shift });
+      if (durationValue instanceof HTMLElement) {
+        durationValue.style.color = '#6ee7b7';
+        durationValue.style.fontFamily = 'ui-monospace, monospace';
+        durationValue.style.fontWeight = '600';
+        this.realtimeCells.push({ node: durationValue, shift });
+      }
     }
     addInfo('Заказов всего', String(orders.length));
     addInfo('Закрытых заказов', String(closed.length));
@@ -432,11 +875,21 @@ export class ShiftHistoryPage {
   }
 
   private startLiveTimer(): void {
+    if (this.liveTimer !== null) window.clearInterval(this.liveTimer);
     this.liveTimer = window.setInterval(() => {
-      for (const cell of this.realtimeCells) {
-        cell.node.textContent = formatDurationSeconds(shiftDurationSeconds(cell.shift));
+      // 1. Своя активная смена
+      if (this.activeShift && this.liveClockEl) {
+        this.liveClockEl.textContent = formatDurationHms(shiftDurationSeconds(this.activeShift));
       }
-    }, FAST_REFRESH_MS);
+      // 2. Смены команды (для Owner)
+      for (const cell of this.teamLiveCells) {
+        cell.node.textContent = formatDurationHms(shiftDurationSeconds(cell.shift));
+      }
+      // 3. Таблица смен
+      for (const cell of this.realtimeCells) {
+        cell.node.textContent = formatDurationHms(shiftDurationSeconds(cell.shift));
+      }
+    }, 1000);
   }
 
   destroy(): void {
@@ -444,6 +897,9 @@ export class ShiftHistoryPage {
     if (this.liveTimer !== null) window.clearInterval(this.liveTimer);
     this.liveTimer = null;
     this.realtimeCells = [];
+    this.teamLiveCells = [];
+    if (this.channel) void supabase.removeChannel(this.channel);
+    this.channel = null;
   }
 }
 

@@ -237,7 +237,10 @@ export class DashboardApp {
         this.currentPage = new TeamPage(main, currentProfile);
         break;
       case 'shifts':
-        this.currentPage = new ShiftHistoryPage(main, { detailShiftId: target.segments[0] ?? null });
+        this.currentPage = new ShiftHistoryPage(main, {
+          detailShiftId: target.segments[0] ?? null,
+          currentProfile
+        });
         break;
       case 'orders':
         this.currentPage = new OrdersPage(main, {

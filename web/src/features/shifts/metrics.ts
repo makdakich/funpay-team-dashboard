@@ -73,3 +73,20 @@ export function shiftDurationSeconds(
 export function isClosedStatus(status: string): status is OrderStatus {
   return status === 'closed';
 }
+
+/**
+ * Форматирование секунд в формат HH:MM:SS (с лидирующими нулями)
+ * Пример: 125 -> "00:02:05", 3661 -> "01:01:01"
+ */
+export function formatDurationHms(totalSeconds: number): string {
+  if (!Number.isFinite(totalSeconds) || totalSeconds < 0) return '00:00:00';
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = Math.floor(totalSeconds % 60);
+  return (
+    String(hours).padStart(2, '0') + ':' +
+    String(minutes).padStart(2, '0') + ':' +
+    String(seconds).padStart(2, '0')
+  );
+}
+

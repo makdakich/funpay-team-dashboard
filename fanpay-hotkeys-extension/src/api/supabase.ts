@@ -66,6 +66,18 @@ export interface SupabaseResult {
   error?: string;
 }
 
+export interface ActiveShiftRecord {
+  id: string;
+  userId: string;
+  sellerAccountId: string;
+  startTime: number;
+  status: 'active';
+}
+
+export interface ActiveShiftOutcome extends SupabaseResult {
+  shift: ActiveShiftRecord | null;
+}
+
 export interface ConnectionCheck extends SupabaseResult {
   authenticated: boolean;
 }
@@ -262,6 +274,63 @@ export class SupabaseClient {
     });
 
     return { success: outcome.ok, error: outcome.error };
+  }
+
+  /**
+   * Fetch active shift for the user from public.shifts (if any).
+   */
+  public async getActiveShift(userId: string): Promise<ActiveShiftOutcome> {
+    if (!userId) {
+      return { success: false, shift: null, error: 'Не передан user_id' };
+    }
+
+    const query =
+      '/rest/v1/shifts?user_id=eq.' +
+      encodeURIComponent(userId) +
+      '&status=eq.active&select=id,user_id,seller_account_id,start_time,status&order=start_time.desc&limit=1';
+
+    const outcome = await this.request<RemoteShiftRecord[]>(query);
+    if (!outcome.ok) {
+      return { success: false, shift: null, error: outcome.error };
+    }
+
+    if (!Array.isArray(outcome.data) || outcome.data.length === 0) {
+      return { success: true, shift: null };
+    }
+
+    const row = outcome.data[0];
+    const parsedStart = Date.parse(row.start_time);
+    const startTime = Number.isNaN(parsedStart) ? Date.now() : parsedStart;
+
+    return {
+      success: true,
+      shift: {
+        id: row.id,
+        userId: row.user_id,
+        sellerAccountId: row.seller_account_id,
+        startTime,
+        status: 'active'
+      }
+    };
+  }
+
+  /**
+   * Trigger recalculation of order attributions for a given shift via RPC.
+   */
+  public async recalculateShiftAttributions(shiftId: string): Promise<SupabaseResult> {
+    if (!shiftId) {
+      return { success: false, error: 'Не указан ID смены для пересчёта атрибуции' };
+    }
+
+    try {
+      await this.callRpc('recalculate_shift_attributions', { p_shift_id: shiftId });
+      return { success: true };
+    } catch (err: unknown) {
+      return {
+        success: false,
+        error: err instanceof Error ? err.message : 'Ошибка при вызове recalculate_shift_attributions'
+      };
+    }
   }
 
   /**

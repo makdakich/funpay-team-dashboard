@@ -278,10 +278,13 @@ class OptionsController {
       } else {
         const op = prompt('Введите имя сменщика для старта смены:', 'Оператор 1');
         if (op && op.trim()) {
-          await chrome.runtime.sendMessage({
+          const res = await chrome.runtime.sendMessage({
             type: 'START_SHIFT',
             payload: { operator: op.trim() }
           });
+          if (res && !res.success) {
+            alert(`Ошибка старта смены: ${res.error || 'Не удалось открыть смену'}`);
+          }
           await this.refreshState();
         }
       }
