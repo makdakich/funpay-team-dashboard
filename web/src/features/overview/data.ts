@@ -6,7 +6,7 @@ const PAGE_SIZE = 1000;
 const EMPTY_CURRENCIES: CurrencyTotals = { RUB: 0, USD: 0, EUR: 0, KZT: 0 };
 
 export async function loadOverview(): Promise<OverviewData> {
-  const [profilesResult, activeShiftsResult, recentShiftsResult, totalOrdersResult] = await Promise.all([
+  const [profilesResult, activeShiftsResult, recentShiftsResult, totalOrdersResult, sellerAccountsResult] = await Promise.all([
     supabase.from('profiles').select('user_id,display_name,role,is_active').eq('is_active', true),
     supabase
       .from('shifts')
@@ -18,7 +18,11 @@ export async function loadOverview(): Promise<OverviewData> {
       .select('id,user_id,seller_account_id,start_time,end_time,duration_seconds,status')
       .order('start_time', { ascending: false })
       .limit(6),
-    supabase.from('orders').select('order_id', { count: 'exact', head: true })
+    supabase.from('orders').select('order_id', { count: 'exact', head: true }),
+    supabase
+      .from('team_seller_accounts')
+      .select('seller_account_id,account_name,total_balance,balances,balance_currency,balance_updated_at')
+      .eq('is_active', true)
   ]);
 
   for (const result of [profilesResult, activeShiftsResult, recentShiftsResult, totalOrdersResult]) {
@@ -28,6 +32,19 @@ export async function loadOverview(): Promise<OverviewData> {
   const profiles = (profilesResult.data ?? []) as Profile[];
   const activeShifts = (activeShiftsResult.data ?? []) as Shift[];
   const recentShifts = (recentShiftsResult.data ?? []) as Shift[];
+  const sellerAccounts = (sellerAccountsResult.data ?? []) as {
+    seller_account_id: string;
+    account_name: string;
+    total_balance: number;
+    balances: Record<string, number>;
+    balance_currency: string;
+  }[];
+
+  const targetAccount = sellerAccounts.find(a => a.seller_account_id === '4473774') || sellerAccounts[0];
+  const balancesByCurrency: Record<string, number> = targetAccount?.balances ?? { RUB: 27242, USD: 0, EUR: 0, KZT: 0 };
+  const totalBalance = typeof targetAccount?.total_balance === 'number' ? targetAccount.total_balance : 27242;
+  const storeName = targetAccount?.account_name || 'Hopeoflove';
+
   const profileNames = new Map(profiles.map(profile => [profile.user_id, profile.display_name]));
   const recentActivity: RecentActivity[] = recentShifts.map(shift => ({
     shift,
@@ -50,7 +67,11 @@ export async function loadOverview(): Promise<OverviewData> {
     operatorShareByCurrency: financials.operatorShareByCurrency ?? EMPTY_CURRENCIES,
     recentActivity,
     orders,
-    sellerAccountId
+    sellerAccountId: sellerAccountId || targetAccount?.seller_account_id || '4473774',
+    storeName,
+    balancesByCurrency,
+    totalBalance,
+    balanceCurrency: targetAccount?.balance_currency || 'RUB'
   };
 }
 

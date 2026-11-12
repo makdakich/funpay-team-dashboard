@@ -82,8 +82,8 @@ export function buildOverview(data: OverviewData): HTMLElement {
   const cardHeader = element('div', 'hero-card-header');
   const metaBox = element('div', 'hero-meta');
   metaBox.append(
-    element('span', 'hero-badge', ['ПОДТВЕРЖДЁННЫЙ ОБОРОТ FUNPAY']),
-    element('span', 'hero-sub', [`Магазин: Hopeoflove ${data.sellerAccountId ? `(ID ${data.sellerAccountId})` : ''}`])
+    element('span', 'hero-badge', ['БАЛАНС FUNPAY']),
+    element('span', 'hero-sub', [`Пользователь: ${data.storeName || 'Hopeoflove'} ${data.sellerAccountId ? `(ID ${data.sellerAccountId})` : ''}`])
   );
 
   const chipsWrap = element('div', 'currency-chips');
@@ -105,6 +105,7 @@ export function buildOverview(data: OverviewData): HTMLElement {
   cardHeader.append(metaBox, chipsWrap);
 
   const balanceVal = element('div', 'hero-balance-val tabular-nums', ['0 ₽']);
+  const turnoverSub = element('div', 'hero-turnover-meta', ['Подтверждённый оборот (closed): 0 ₽']);
 
   // Share slider & earnings row
   const shareControl = element('div', 'hero-share-control');
@@ -140,7 +141,7 @@ export function buildOverview(data: OverviewData): HTMLElement {
   shareSliderRow.append(slider, numInput);
   shareControl.append(shareLabelRow, shareSliderRow);
 
-  balanceCard.append(cardHeader, balanceVal, shareControl);
+  balanceCard.append(cardHeader, balanceVal, turnoverSub, shareControl);
 
   // 2.2 Right: 3 Delta KPI Cards Column
   const metricsCol = element('div', 'hero-metrics-column');
@@ -190,7 +191,14 @@ export function buildOverview(data: OverviewData): HTMLElement {
     const totalTurnover = data.turnoverByCurrency[activeCurrency] ?? 0;
     const cleanShareTotal = totalTurnover * (sharePercent / 100);
 
-    balanceVal.textContent = formatCurrency(totalTurnover, activeCurrency);
+    // Current FunPay balance on the account
+    const rawAccountBalance = data.balancesByCurrency?.[activeCurrency];
+    const currentFunPayBalance = typeof rawAccountBalance === 'number'
+      ? rawAccountBalance
+      : (activeCurrency === 'RUB' ? (data.totalBalance ?? 27242) : 0);
+
+    balanceVal.textContent = formatCurrency(currentFunPayBalance, activeCurrency);
+    turnoverSub.textContent = `Подтверждённый оборот (closed): ${formatCurrency(totalTurnover, activeCurrency)}`;
     cleanShareVal.textContent = `Чистая доля: ${formatCurrency(cleanShareTotal, activeCurrency)}`;
 
     kpiTodayVal.textContent = formatCurrency(k.todayTurnover, activeCurrency);

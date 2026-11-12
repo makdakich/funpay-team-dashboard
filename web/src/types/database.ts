@@ -141,4 +141,8 @@ export interface OverviewData {
   recentActivity: RecentActivity[];
   orders: OverviewOrderPoint[];
   sellerAccountId?: string;
+  storeName?: string;
+  balancesByCurrency?: Record<string, number>;
+  totalBalance?: number;
+  balanceCurrency?: string;
 }

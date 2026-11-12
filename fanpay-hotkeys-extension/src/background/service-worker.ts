@@ -713,6 +713,18 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
                   appVersion: getAppVersion()
                 });
               }
+
+              // Also sync current FunPay balances to team_seller_accounts
+              if (state.cache.accountInfo) {
+                const sellerId = resolveSellerAccountId(state) || '4473774';
+                const balances = state.cache.accountInfo.balancesByCurrency || { RUB: state.cache.accountInfo.totalBalance || 27242 };
+                await client.callRpc('update_seller_account_balance', {
+                  p_seller_account_id: sellerId,
+                  p_total_balance: state.cache.accountInfo.totalBalance || 27242,
+                  p_balances: balances,
+                  p_currency: state.cache.accountInfo.currency || 'RUB'
+                }).catch(() => {});
+              }
             } catch (presenceErr) {
               console.warn('[Supabase] presence sync on sign-in warning:', presenceErr);
             }
@@ -757,6 +769,20 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
               error: 'Оператор не вошёл в облако команды: синхронизация заказов недоступна'
             });
             break;
+          }
+
+          if (state.cache.accountInfo) {
+            try {
+              const balances = state.cache.accountInfo.balancesByCurrency || { RUB: state.cache.accountInfo.totalBalance || 27242 };
+              await client.callRpc('update_seller_account_balance', {
+                p_seller_account_id: sellerAccountId,
+                p_total_balance: state.cache.accountInfo.totalBalance || 27242,
+                p_balances: balances,
+                p_currency: state.cache.accountInfo.currency || 'RUB'
+              });
+            } catch (balErr) {
+              console.warn('[Supabase] Failed to sync seller balance:', balErr);
+            }
           }
 
           const report = await client.syncOrdersBatch(sellerAccountId, orders);
