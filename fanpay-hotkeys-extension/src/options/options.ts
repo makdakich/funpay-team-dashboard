@@ -1204,13 +1204,13 @@ class OptionsController {
     // Filter by period
     const now = new Date();
     if (this.shiftsPeriodFilter === 'today') {
-      const todayStart = getUserStartOfToday().getTime();
+      const todayStart = getUserStartOfToday();
       filtered = filtered.filter(s => s.startTime >= todayStart);
     } else if (this.shiftsPeriodFilter === '7days') {
-      const d7 = getUserStartOfDaysAgo(7).getTime();
+      const d7 = getUserStartOfDaysAgo(7);
       filtered = filtered.filter(s => s.startTime >= d7);
     } else if (this.shiftsPeriodFilter === '30days') {
-      const d30 = getUserStartOfDaysAgo(30).getTime();
+      const d30 = getUserStartOfDaysAgo(30);
       filtered = filtered.filter(s => s.startTime >= d30);
     } else if (this.shiftsPeriodFilter === 'this_month') {
       const mStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
@@ -1524,16 +1524,16 @@ class OptionsController {
     // Period filter
     const now = new Date();
     if (this.orderPeriodFilter === 'today') {
-      const todayStart = getUserStartOfToday().getTime();
+      const todayStart = getUserStartOfToday();
       orders = orders.filter(o => o.timestamp >= todayStart);
     } else if (this.orderPeriodFilter === '7days') {
-      const d7 = getUserStartOfDaysAgo(7).getTime();
+      const d7 = getUserStartOfDaysAgo(7);
       orders = orders.filter(o => o.timestamp >= d7);
     } else if (this.orderPeriodFilter === '30days') {
-      const d30 = getUserStartOfDaysAgo(30).getTime();
+      const d30 = getUserStartOfDaysAgo(30);
       orders = orders.filter(o => o.timestamp >= d30);
     } else if (this.orderPeriodFilter === '90days') {
-      const d90 = getUserStartOfDaysAgo(90).getTime();
+      const d90 = getUserStartOfDaysAgo(90);
       orders = orders.filter(o => o.timestamp >= d90);
     }
 
