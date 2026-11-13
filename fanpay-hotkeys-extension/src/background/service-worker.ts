@@ -83,6 +83,9 @@ chrome.runtime.onInstalled.addListener(async () => {
     // alarms not available
   }
 
+  // Periodic FunPay orders & balance auto-sync
+  setupAutoSyncAlarm(state.settings.autoSyncIntervalMinutes ?? 15);
+
   // Automatically inject content scripts into all existing open FunPay tabs
   try {
     if (typeof chrome !== 'undefined' && chrome.tabs && chrome.scripting) {
@@ -106,9 +109,12 @@ chrome.runtime.onInstalled.addListener(async () => {
   }
 });
 
-// Check for unclosed shifts when browser starts
+// Check for unclosed shifts and initialize background sync when browser starts
 chrome.runtime.onStartup?.addListener(async () => {
   try {
+    const state = await loadState();
+    setupAutoSyncAlarm(state.settings.autoSyncIntervalMinutes ?? 15);
+
     const shiftState = await loadShiftState();
     if (shiftState.shiftActive && shiftState.shiftStartTime) {
       const elapsedHours = (Date.now() - shiftState.shiftStartTime) / (3600 * 1000);
@@ -244,9 +250,76 @@ chrome.notifications?.onClicked.addListener(() => {
   chrome.runtime.openOptionsPage();
 });
 
-// Auto-sync configuration helper (safe no-op)
-function setupAutoSyncAlarm(_intervalMinutes: number) {
-  // Reserved for explicit sync triggers without background alarm polling
+// Auto-sync configuration helper
+function setupAutoSyncAlarm(intervalMinutes: number) {
+  try {
+    if (intervalMinutes > 0) {
+      chrome.alarms.create('AUTO_SYNC_FUNPAY', { periodInMinutes: Math.max(5, intervalMinutes) });
+    } else {
+      chrome.alarms.clear('AUTO_SYNC_FUNPAY');
+    }
+  } catch {}
+}
+
+// Background alarm handler for periodic FunPay & Cloud sync
+chrome.alarms?.onAlarm.addListener(async (alarm) => {
+  if (alarm.name !== 'AUTO_SYNC_FUNPAY') return;
+  try {
+    const state = await loadState();
+    if (!state.settings.goldenKey) return;
+    const syncResult = await FunPayClient.getInstance().syncAllData(
+      state.settings.goldenKey,
+      state.settings.developerMode,
+      state.cache.orders || [],
+      false
+    );
+    if (syncResult.success) {
+      const newCache = {
+        lastSyncTimestamp: Date.now(),
+        accountInfo: syncResult.account,
+        orders: syncResult.orders,
+        diagnosticReport: syncResult.diagnostics?.diagnosticReport,
+        error: null
+      };
+      await saveCache(newCache);
+      await forwardSyncResultToCloud(state, syncResult);
+      await notifyAllFunPayTabs();
+    }
+  } catch (err) {
+    console.warn('[AutoSync] Background periodic sync error:', err);
+  }
+});
+
+// Helper to push fresh balance and orders to Supabase
+async function forwardSyncResultToCloud(
+  state: ExtensionState,
+  syncResult: import('../api/models').FunPaySyncResult
+): Promise<void> {
+  if (!state.settings.cloudSyncEnabled) return;
+  try {
+    const { client, userId } = await createCloudClient();
+    if (!userId || !syncResult.account) return;
+    const sellerId = resolveSellerAccountId(state) || String(syncResult.account.userId);
+    const totalBal = typeof syncResult.account.totalBalance === 'number' ? syncResult.account.totalBalance : 0;
+    const balances = syncResult.account.balancesByCurrency && Object.keys(syncResult.account.balancesByCurrency).length > 0
+      ? syncResult.account.balancesByCurrency
+      : { [syncResult.account.currency || 'RUB']: totalBal };
+
+    await client.callRpc('update_seller_account_balance', {
+      p_seller_account_id: sellerId,
+      p_total_balance: totalBal,
+      p_balances: balances,
+      p_currency: syncResult.account.currency || 'RUB'
+    }).catch((err) => console.warn('[Supabase] Failed to forward balance:', err));
+
+    if (syncResult.orders && syncResult.orders.length > 0) {
+      await client.syncOrdersBatch(sellerId, syncResult.orders).catch((err) =>
+        console.warn('[Supabase] Failed to forward orders batch:', err)
+      );
+    }
+  } catch (cloudErr) {
+    console.warn('[Supabase] forwardSyncResultToCloud error:', cloudErr);
+  }
 }
 
 // Notify all open FunPay tabs about state changes
@@ -372,6 +445,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
               error: null
             };
             await saveCache(newCache);
+            await forwardSyncResultToCloud(state, syncResult);
             await notifyAllFunPayTabs();
             sendResponse({ success: true, cache: newCache, syncResult });
           } else {
@@ -405,6 +479,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
               error: null
             };
             await saveCache(newCache);
+            await forwardSyncResultToCloud(state, syncResult);
             await notifyAllFunPayTabs();
             sendResponse({ success: true, cache: newCache, syncResult });
           } else {
@@ -907,10 +982,13 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
               // Also sync current FunPay balances to team_seller_accounts
               if (state.cache.accountInfo) {
                 const sellerId = resolveSellerAccountId(state) || '4473774';
-                const balances = state.cache.accountInfo.balancesByCurrency || { RUB: state.cache.accountInfo.totalBalance || 27242 };
+                const totalBal = typeof state.cache.accountInfo.totalBalance === 'number' ? state.cache.accountInfo.totalBalance : 0;
+                const balances = state.cache.accountInfo.balancesByCurrency && Object.keys(state.cache.accountInfo.balancesByCurrency).length > 0
+                  ? state.cache.accountInfo.balancesByCurrency
+                  : { [state.cache.accountInfo.currency || 'RUB']: totalBal };
                 await client.callRpc('update_seller_account_balance', {
                   p_seller_account_id: sellerId,
-                  p_total_balance: state.cache.accountInfo.totalBalance || 27242,
+                  p_total_balance: totalBal,
                   p_balances: balances,
                   p_currency: state.cache.accountInfo.currency || 'RUB'
                 }).catch(() => {});
@@ -964,10 +1042,13 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
           if (state.cache.accountInfo) {
             try {
-              const balances = state.cache.accountInfo.balancesByCurrency || { RUB: state.cache.accountInfo.totalBalance || 27242 };
+              const totalBal = typeof state.cache.accountInfo.totalBalance === 'number' ? state.cache.accountInfo.totalBalance : 0;
+              const balances = state.cache.accountInfo.balancesByCurrency && Object.keys(state.cache.accountInfo.balancesByCurrency).length > 0
+                ? state.cache.accountInfo.balancesByCurrency
+                : { [state.cache.accountInfo.currency || 'RUB']: totalBal };
               await client.callRpc('update_seller_account_balance', {
                 p_seller_account_id: sellerAccountId,
-                p_total_balance: state.cache.accountInfo.totalBalance || 27242,
+                p_total_balance: totalBal,
                 p_balances: balances,
                 p_currency: state.cache.accountInfo.currency || 'RUB'
               });
@@ -978,6 +1059,38 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
           const report = await client.syncOrdersBatch(sellerAccountId, orders);
           sendResponse({ success: report.errors.length === 0, report });
+          break;
+        }
+
+        case 'LIVE_BALANCE_UPDATED': {
+          const { totalBalance, currency, balancesByCurrency } = message.payload || {};
+          if (typeof totalBalance === 'number') {
+            const state = await loadState();
+            if (state.cache.accountInfo) {
+              state.cache.accountInfo.totalBalance = totalBalance;
+              if (currency) state.cache.accountInfo.currency = currency;
+              if (balancesByCurrency) state.cache.accountInfo.balancesByCurrency = balancesByCurrency;
+              state.cache.accountInfo.lastUpdated = Date.now();
+              await saveCache(state.cache);
+            }
+            if (state.settings.cloudSyncEnabled) {
+              try {
+                const { client, userId } = await createCloudClient();
+                if (userId) {
+                  const sellerId = resolveSellerAccountId(state) || '4473774';
+                  await client.callRpc('update_seller_account_balance', {
+                    p_seller_account_id: sellerId,
+                    p_total_balance: totalBalance,
+                    p_balances: balancesByCurrency || { [currency || 'RUB']: totalBalance },
+                    p_currency: currency || 'RUB'
+                  });
+                }
+              } catch (cloudErr) {
+                console.warn('[Supabase] Live balance update failed:', cloudErr);
+              }
+            }
+          }
+          sendResponse({ success: true });
           break;
         }
 

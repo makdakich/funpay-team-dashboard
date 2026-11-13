@@ -145,4 +145,5 @@ export interface OverviewData {
   balancesByCurrency?: Record<string, number>;
   totalBalance?: number;
   balanceCurrency?: string;
+  balanceUpdatedAt?: string;
 }

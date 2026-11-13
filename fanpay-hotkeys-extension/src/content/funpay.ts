@@ -21,6 +21,7 @@ class FunPayContentController {
   private state: ExtensionState | null = null;
   private shiftState: ShiftState | null = null;
   private observer: MutationObserver | null = null;
+  private lastBalanceSummary: string | null = null;
 
   public async init() {
     if (window.__FPHK_INITIALIZED__) return;
@@ -60,6 +61,25 @@ class FunPayContentController {
 
     this.setupMessageListener();
     this.setupMutationObserver();
+    this.checkLiveBalance();
+  }
+
+  private checkLiveBalance() {
+    try {
+      const bal = FunPayDomAdapter.getCurrentBalance();
+      if (bal) {
+        const summary = `${bal.totalBalance}_${bal.currency}`;
+        if (summary !== this.lastBalanceSummary) {
+          this.lastBalanceSummary = summary;
+          safeSendMessage({
+            type: 'LIVE_BALANCE_UPDATED',
+            payload: bal
+          });
+        }
+      }
+    } catch {
+      // ignore
+    }
   }
 
   private applyState(state: ExtensionState) {
@@ -174,7 +194,11 @@ class FunPayContentController {
         if (this.state) {
           this.panel.render();
         }
+        this.checkLiveBalance();
       }
+
+      // 2. Check live balance if header changed
+      this.checkLiveBalance();
 
       // 2. Re-attach panel if chat container appeared in DOM and panel is not mounted
       const panelMounted = document.getElementById('fphk-panel-root');

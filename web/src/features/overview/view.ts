@@ -105,6 +105,7 @@ export function buildOverview(data: OverviewData): HTMLElement {
   cardHeader.append(metaBox, chipsWrap);
 
   const balanceVal = element('div', 'hero-balance-val tabular-nums', ['0 ₽']);
+  const syncMeta = element('div', 'hero-turnover-meta');
 
   // Share slider & earnings row
   const shareControl = element('div', 'hero-share-control');
@@ -140,7 +141,7 @@ export function buildOverview(data: OverviewData): HTMLElement {
   shareSliderRow.append(slider, numInput);
   shareControl.append(shareLabelRow, shareSliderRow);
 
-  balanceCard.append(cardHeader, balanceVal, shareControl);
+  balanceCard.append(cardHeader, balanceVal, syncMeta, shareControl);
 
   // 2.2 Right: 3 Delta KPI Cards Column
   const metricsCol = element('div', 'hero-metrics-column');
@@ -192,9 +193,31 @@ export function buildOverview(data: OverviewData): HTMLElement {
     const rawAccountBalance = data.balancesByCurrency?.[activeCurrency];
     const currentFunPayBalance = typeof rawAccountBalance === 'number'
       ? rawAccountBalance
-      : (activeCurrency === 'RUB' ? (data.totalBalance ?? 27242) : 0);
+      : (activeCurrency === 'RUB' ? (data.totalBalance ?? 0) : 0);
 
     balanceVal.textContent = formatCurrency(currentFunPayBalance, activeCurrency);
+
+    if (data.balanceUpdatedAt) {
+      const syncDate = new Date(data.balanceUpdatedAt);
+      const diffMs = Date.now() - syncDate.getTime();
+      const diffMin = Math.floor(diffMs / 60000);
+      const timeStr = syncDate.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+      const dateStr = syncDate.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' });
+      if (diffMin > 120) {
+        syncMeta.textContent = `⚠️ Баланс от: ${dateStr}, ${timeStr} (обновлено ${Math.floor(diffMin / 60)} ч. назад)`;
+        syncMeta.style.color = '#f59e0b';
+      } else if (diffMin <= 1) {
+        syncMeta.textContent = `🟢 Баланс актуален (синхронизирован только что)`;
+        syncMeta.style.color = '#10b981';
+      } else {
+        syncMeta.textContent = `Баланс актуален на: ${dateStr}, ${timeStr} (${diffMin} мин. назад)`;
+        syncMeta.style.color = 'var(--text-secondary)';
+      }
+    } else {
+      syncMeta.textContent = '⚠️ Баланс ещё не синхронизирован из расширения';
+      syncMeta.style.color = '#f59e0b';
+    }
+
     cleanShareVal.textContent = `Чистая доля сегодня: ${formatCurrency(k.todayCleanShare, activeCurrency)}`;
 
     kpiTodayVal.textContent = formatCurrency(k.todayTurnover, activeCurrency);

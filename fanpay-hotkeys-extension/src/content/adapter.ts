@@ -195,4 +195,28 @@ export class FunPayDomAdapter {
   private static isElementVisible(el: HTMLElement): boolean {
     return !!(el.offsetWidth || el.offsetHeight || el.getClientRects().length);
   }
+
+  /**
+   * Extract live balance from the header badge if visible on the page
+   */
+  public static getCurrentBalance(): { totalBalance: number; currency: string; balancesByCurrency: Record<string, number> } | null {
+    const balanceEl = document.querySelector('.badge-balance');
+    if (!balanceEl || !balanceEl.textContent) return null;
+    const rawText = balanceEl.textContent.trim();
+    const tokens = rawText.split(/\s+/);
+    let totalBalance = 0;
+    let currency = '₽';
+    if (tokens.length >= 2) {
+      currency = tokens[tokens.length - 1];
+      const numPart = tokens.slice(0, tokens.length - 1).join('').replace(',', '.');
+      totalBalance = parseFloat(numPart) || 0;
+    } else {
+      totalBalance = parseFloat(rawText.replace(',', '.')) || 0;
+    }
+    return {
+      totalBalance,
+      currency,
+      balancesByCurrency: { [currency]: totalBalance }
+    };
+  }
 }

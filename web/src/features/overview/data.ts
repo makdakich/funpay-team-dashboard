@@ -38,11 +38,15 @@ export async function loadOverview(): Promise<OverviewData> {
     total_balance: number;
     balances: Record<string, number>;
     balance_currency: string;
+    balance_updated_at?: string;
   }[];
 
   const targetAccount = sellerAccounts.find(a => a.seller_account_id === '4473774') || sellerAccounts[0];
-  const balancesByCurrency: Record<string, number> = targetAccount?.balances ?? { RUB: 27242, USD: 0, EUR: 0, KZT: 0 };
-  const totalBalance = typeof targetAccount?.total_balance === 'number' ? targetAccount.total_balance : 27242;
+  const totalBalance = typeof targetAccount?.total_balance === 'number' ? targetAccount.total_balance : 0;
+  const balancesByCurrency: Record<string, number> =
+    targetAccount?.balances && Object.keys(targetAccount.balances).length > 0
+      ? targetAccount.balances
+      : { [targetAccount?.balance_currency || 'RUB']: totalBalance };
   const storeName = targetAccount?.account_name || 'Hopeoflove';
 
   const profileNames = new Map(profiles.map(profile => [profile.user_id, profile.display_name]));
@@ -72,7 +76,8 @@ export async function loadOverview(): Promise<OverviewData> {
     storeName,
     balancesByCurrency,
     totalBalance,
-    balanceCurrency: targetAccount?.balance_currency || 'RUB'
+    balanceCurrency: targetAccount?.balance_currency || 'RUB',
+    balanceUpdatedAt: targetAccount?.balance_updated_at
   };
 }
 
