@@ -394,18 +394,22 @@ export class SupabaseClient {
       const isOwnShift =
         !options.currentUserId ||
         row.user_id === options.currentUserId ||
-        row.profiles?.display_name === 'Алекс';
+        row.profiles?.display_name === 'Алекс' ||
+        row.profiles?.display_name === 'Создатель' ||
+        row.profiles?.display_name === 'kubinovkurtas';
 
-      const cloudStats = ordersMap.get(row.id);
+      const cloudStats = ordersMap.get(row.id) || (row.legacy_id ? ordersMap.get(row.legacy_id) : undefined);
       let earnings: ShiftEarnings;
       if (cloudStats && cloudStats.count > 0) {
+        const rubTurnover = (cloudStats.turnover['RUB'] || 0) + (cloudStats.turnover['₽'] || 0);
+        const rubShare = (cloudStats.share['RUB'] || 0) + (cloudStats.share['₽'] || 0);
         earnings = {
           ordersCount: cloudStats.count,
           turnoverByCurrency: cloudStats.turnover,
           sellerShareByCurrency: cloudStats.share,
-          closedTurnover: cloudStats.turnover['RUB'] || 0,
+          closedTurnover: rubTurnover,
           refundedTurnover: 0,
-          sellerShare: cloudStats.share['RUB'] || 0
+          sellerShare: rubShare
         };
       } else if (isOwnShift && startTime > 0 && settings.localOrders.length > 0) {
         earnings = calculateShiftEarnings(startTime, endTime, settings.localOrders, settings.sellerSharePercent);

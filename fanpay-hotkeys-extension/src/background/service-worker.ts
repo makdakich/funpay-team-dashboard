@@ -673,10 +673,20 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
                 currentUserId: userId ?? undefined
               });
               if (cloudShifts && cloudShifts.length > 0) {
-                const idSet = new Set(cloudShifts.map(s => s.id));
+                const seen = new Set<string>();
+                for (const s of cloudShifts) {
+                  if (s.id) seen.add(s.id);
+                  if (s.legacyId) seen.add(s.legacyId);
+                  seen.add(`time_${Math.round(s.startTime / 1000)}`);
+                }
                 const combined = [...cloudShifts];
                 for (const loc of localHistory) {
-                  if (!idSet.has(loc.id)) {
+                  const hasId = loc.id && seen.has(loc.id);
+                  const hasLegacy = loc.legacyId && seen.has(loc.legacyId);
+                  const hasTime = seen.has(`time_${Math.round(loc.startTime / 1000)}`);
+                  if (!hasId && !hasLegacy && !hasTime) {
+                    if (loc.id) seen.add(loc.id);
+                    seen.add(`time_${Math.round(loc.startTime / 1000)}`);
                     combined.push(loc);
                   }
                 }
@@ -715,7 +725,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
               });
               break;
             }
-            const { client } = await createCloudClient();
+            const { client, userId } = await createCloudClient();
             const result = await client.importHistoricalShifts(legacyShifts);
 
             // Синхронизируем локальную историю ТОЛЬКО после подтверждения успешного импорта
@@ -764,7 +774,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
         case 'FETCH_TEAM_STATUS': {
           try {
-            const { client } = await createCloudClient();
+            const { client, userId } = await createCloudClient();
             const team = await client.fetchTeamOnlineStatus();
             sendResponse({ success: true, team });
           } catch (err: unknown) {
@@ -859,7 +869,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
             // Auto-sync active local shift to cloud immediately if operator is currently on shift
             try {
               const shiftState = await loadShiftState();
-              const { client } = await createCloudClient();
+              const { client, userId } = await createCloudClient();
               const sellerAccountId = resolveSellerAccountId(state);
 
               if (shiftState.shiftActive && session.userId) {
