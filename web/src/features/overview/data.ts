@@ -25,7 +25,7 @@ export async function loadOverview(): Promise<OverviewData> {
       .eq('is_active', true)
   ]);
 
-  for (const result of [profilesResult, activeShiftsResult, recentShiftsResult, totalOrdersResult]) {
+  for (const result of [profilesResult, activeShiftsResult, recentShiftsResult, totalOrdersResult, sellerAccountsResult]) {
     if (result.error) throw result.error;
   }
 

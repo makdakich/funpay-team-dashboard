@@ -923,7 +923,10 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         // Team cloud: operator sign-in and order synchronisation (schema v2.4)
         // ==================================================================
         case 'GET_CLOUD_AUTH_STATE': {
-          const session = await loadAuthSession();
+          const state = await loadState();
+          const url = state.settings.supabaseUrl || DEFAULT_SUPABASE_CONFIG.url;
+          const key = state.settings.supabaseKey || DEFAULT_SUPABASE_CONFIG.anonKey;
+          const session = await loadFreshSession(url, key);
           sendResponse({ success: true, auth: toAuthState(session) });
           break;
         }

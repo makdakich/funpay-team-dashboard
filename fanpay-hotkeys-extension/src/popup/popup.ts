@@ -198,11 +198,11 @@ class PopupController {
       const authRes = await chrome.runtime.sendMessage({ type: 'GET_CLOUD_AUTH_STATE' });
       const auth = authRes?.auth;
 
-      if (auth && auth.user) {
+      if (auth && auth.signedIn && !auth.expired) {
         cloudBadge.className = 'connection-status-pill connected';
-        const displayUser = auth.user.email?.split('@')[0] || auth.user.role || 'Подключено';
+        const displayUser = auth.email?.split('@')[0] || auth.userId || 'Подключено';
         cloudText.textContent = `🟢 ${displayUser}`;
-        cloudBadge.title = `Подключено к Supabase как ${auth.user.email} (${auth.role || 'creator'})`;
+        cloudBadge.title = `Подключено к Supabase как ${auth.email || 'оператор'}`;
       } else {
         cloudBadge.className = 'connection-status-pill warning';
         cloudText.textContent = '⚠️ Вход в облако';

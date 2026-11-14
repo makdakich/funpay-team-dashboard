@@ -14,6 +14,7 @@ export class TeamPage {
   private stateLabel: HTMLElement | null = null;
   private dataContainer: HTMLElement | null = null;
   private inviteModalHost: HTMLElement | null = null;
+  private wasConnected = false;
   private destroyed = false;
   private loading = false;
 
@@ -98,7 +99,12 @@ export class TeamPage {
         if (status === 'SUBSCRIBED') {
           this.setRealtimeLabel(true);
           this.armRefreshTimer(60_000);
+          if (this.wasConnected) {
+            void this.refresh();
+          }
+          this.wasConnected = true;
         } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+          this.wasConnected = false;
           this.setRealtimeLabel(false);
           this.armRefreshTimer(20_000);
         }

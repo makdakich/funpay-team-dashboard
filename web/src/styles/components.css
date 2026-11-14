@@ -226,6 +226,22 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
   color: #6ee7b7;
   border-color: rgb(16 185 129 / 35%);
 }
+.sync-status-warning .realtime-dot {
+  background: #f59e0b;
+  box-shadow: 0 0 10px rgb(245 158 11 / 60%);
+}
+.sync-status-warning {
+  color: #fcd34d;
+  border-color: rgb(245 158 11 / 35%);
+}
+.sync-status-error .realtime-dot {
+  background: #ef4444;
+  box-shadow: 0 0 10px rgb(239 68 68 / 60%);
+}
+.sync-status-error {
+  color: #fca5a5;
+  border-color: rgb(239 68 68 / 35%);
+}
 
 .main-content { max-width: 1440px; margin: 0 auto; padding: 34px 38px 60px; }
 .page-stack { display: grid; gap: 24px; }

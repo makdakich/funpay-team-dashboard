@@ -2,10 +2,11 @@ import { AuthService, type AuthState } from '@/lib/auth';
 import type { Profile } from '@/types/database';
 import { getErrorMessage } from '@/lib/errors';
 import { createButton, createNotice, element, icon, type IconName } from '@/components/ui';
+import { SyncStatusIndicator } from '@/components/page';
 import { supabase } from '@/lib/supabase';
 import { renderLogin } from '@/features/auth/login-view';
 import { renderAcceptInvite } from '@/features/auth/accept-invite-view';
-import { renderOverview } from '@/features/overview/view';
+import { OverviewPage } from '@/features/overview/view';
 import { FinancePage } from '@/features/finance/view';
 import { OrdersPage } from '@/features/orders/view';
 import { ShiftHistoryPage } from '@/features/shifts/view';
@@ -23,6 +24,7 @@ export class DashboardApp {
   private currentPage: { destroy(): void } | null = null;
   private currentRouteKey: string | null = null;
   private activeUserId: string | null = null;
+  private syncIndicator: SyncStatusIndicator | null = null;
   private mainContent: HTMLElement | null = null;
   private mobileSidebar: HTMLElement | null = null;
   private mobileOverlay: HTMLButtonElement | null = null;
@@ -64,6 +66,8 @@ export class DashboardApp {
 
     if (isAcceptInviteRoute()) {
       this.destroyCurrentPage();
+      this.syncIndicator?.destroy();
+      this.syncIndicator = null;
       this.activeUserId = null;
       this.currentRouteKey = null;
       this.mainContent = null;
@@ -85,6 +89,8 @@ export class DashboardApp {
     }
 
     this.destroyCurrentPage();
+    this.syncIndicator?.destroy();
+    this.syncIndicator = null;
     this.activeUserId = null;
     this.currentRouteKey = null;
     this.mainContent = null;
@@ -166,7 +172,9 @@ export class DashboardApp {
     const profileBtn = createButton(`👤 ${displayName} ✏️`, 'button button-ghost button-xs profile-topbar-btn');
     profileBtn.title = 'Изменить отображаемое имя';
     profileBtn.addEventListener('click', () => this.openProfileRenameModal(displayName));
-    topRight.append(profileBtn, element('span', 'environment-chip', [element('span', 'environment-dot'), 'Защищённое соединение']));
+    this.syncIndicator?.destroy();
+    this.syncIndicator = new SyncStatusIndicator();
+    topRight.append(profileBtn, this.syncIndicator.node);
     topbar.append(topLeft, topRight);
 
     const main = element('main', 'main-content');
@@ -253,15 +261,9 @@ export class DashboardApp {
         this.currentPage = new FinancePage(main);
         break;
       default:
-        this.currentPage = null;
-        this.renderOverviewRoute();
+        this.currentPage = new OverviewPage(main);
         break;
     }
-  }
-
-  private renderOverviewRoute(): void {
-    if (!this.mainContent) return;
-    renderOverview(this.mainContent, () => this.renderOverviewRoute());
   }
 
   private openMobileSidebar(): void {
@@ -400,6 +402,8 @@ export class DashboardApp {
 
   destroy(): void {
     this.destroyCurrentPage();
+    this.syncIndicator?.destroy();
+    this.syncIndicator = null;
     this.unsubscribeAuth?.();
     this.auth.dispose();
     window.removeEventListener('hashchange', this.routeHandler);

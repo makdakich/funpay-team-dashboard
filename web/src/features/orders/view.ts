@@ -39,6 +39,7 @@ export class OrdersPage {
   private channel: ReturnType<typeof supabase.channel> | null = null;
   private searchTimer: number | null = null;
   private realtimeTimer: number | null = null;
+  private wasConnected = false;
   private destroyed = false;
   private loading = false;
   private detailHost: HTMLElement | null = null;
@@ -352,8 +353,15 @@ export class OrdersPage {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => this.scheduleRealtimeRefresh())
       .subscribe(status => {
         if (this.destroyed || !this.indicator) return;
-        if (status === 'SUBSCRIBED') this.indicator.update(true, '');
-        else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+        if (status === 'SUBSCRIBED') {
+          this.indicator.update(true, '');
+          if (this.wasConnected) {
+            void this.refresh();
+            if (this.orderRef) void this.loadDetail();
+          }
+          this.wasConnected = true;
+        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+          this.wasConnected = false;
           this.indicator.update(false, 'Realtime недоступно · обновляйте вручную');
         }
       });

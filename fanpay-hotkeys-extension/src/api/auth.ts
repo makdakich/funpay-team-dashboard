@@ -267,44 +267,68 @@ export function isSessionExpired(session: CloudAuthSession, now: number = Date.n
   return !session.expiresAt || session.expiresAt - EXPIRY_SKEW_MS <= now;
 }
 
+/** Mutex for deduplicating in-flight token refresh/re-auth requests to avoid refresh token rotation races. */
+let activeRefreshPromise: Promise<CloudAuthSession | null> | null = null;
+
 /**
  * Load the stored session and silently refresh or re-authenticate when needed.
  * Never drops the session on transient offline or network connection errors.
  * Silently signs in with saved credentials if refresh token was invalidated.
+ * Uses an in-flight promise lock to deduplicate concurrent calls.
  */
 export async function loadFreshSession(url: string, anonKey: string): Promise<CloudAuthSession | null> {
-  const session = await loadAuthSession();
-
-  if (session && !isSessionExpired(session)) {
-    return session;
+  if (activeRefreshPromise) {
+    return activeRefreshPromise;
   }
 
-  if (session?.refreshToken) {
+  activeRefreshPromise = (async () => {
     try {
-      const refreshed = await new SupabaseAuth(url, anonKey).refreshSession(session.refreshToken);
-      await saveAuthSession(refreshed);
-      return refreshed;
-    } catch (refreshErr) {
-      const msg = refreshErr instanceof Error ? refreshErr.message.toLowerCase() : '';
-      const isFatal = msg.includes('invalid') || msg.includes('revoked') || msg.includes('not found') || msg.includes('expired');
-      if (!isFatal) {
-        // Transient network issue: keep existing session intact so offline state doesn't wipe auth
+      const session = await loadAuthSession();
+
+      if (session && !isSessionExpired(session)) {
         return session;
       }
-    }
-  }
 
-  // Fallback: silent auto-login via persisted credentials so user never has to re-type password
-  const creds = await loadCloudCredentials();
-  if (creds?.email && creds?.password) {
-    try {
-      const reauthed = await new SupabaseAuth(url, anonKey).signInWithPassword(creds.email, creds.password);
-      await saveAuthSession(reauthed);
-      return reauthed;
-    } catch {
-      // Re-auth failed (e.g. offline)
-    }
-  }
+      if (session?.refreshToken) {
+        try {
+          const refreshed = await new SupabaseAuth(url, anonKey).refreshSession(session.refreshToken);
+          await saveAuthSession(refreshed);
+          return refreshed;
+        } catch (refreshErr) {
+          const status = refreshErr instanceof SupabaseAuthError ? refreshErr.status : 0;
+          const msg = refreshErr instanceof Error ? refreshErr.message.toLowerCase() : '';
+          const isFatal =
+            status === 400 ||
+            status === 401 ||
+            msg.includes('invalid') ||
+            msg.includes('revoked') ||
+            msg.includes('not found') ||
+            msg.includes('expired') ||
+            msg.includes('сессия истекла');
+          if (!isFatal) {
+            // Transient network issue: keep existing session intact so offline state doesn't wipe auth
+            return session;
+          }
+        }
+      }
 
-  return session || null;
+      // Fallback: silent auto-login via persisted credentials so user never has to re-type password
+      const creds = await loadCloudCredentials();
+      if (creds?.email && creds?.password) {
+        try {
+          const reauthed = await new SupabaseAuth(url, anonKey).signInWithPassword(creds.email, creds.password);
+          await saveAuthSession(reauthed);
+          return reauthed;
+        } catch {
+          // Re-auth failed (e.g. offline)
+        }
+      }
+
+      return session || null;
+    } finally {
+      activeRefreshPromise = null;
+    }
+  })();
+
+  return activeRefreshPromise;
 }

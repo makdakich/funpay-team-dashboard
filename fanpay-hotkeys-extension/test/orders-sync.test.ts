@@ -14,7 +14,14 @@ import {
   RpcOrderResult
 } from '../src/api/orders-sync.ts';
 import { DEFAULT_SUPABASE_CONFIG, SupabaseClient } from '../src/api/supabase.ts';
-import { isSessionExpired, saveAuthSession, loadAuthSession, clearAuthSession } from '../src/api/auth.ts';
+import {
+  isSessionExpired,
+  saveAuthSession,
+  loadAuthSession,
+  clearAuthSession,
+  loadFreshSession,
+  saveCloudCredentials
+} from '../src/api/auth.ts';
 import { FunPayOrder, CloudAuthSession } from '../src/shared/types.ts';
 
 // ---------------------------------------------------------------------------
@@ -397,6 +404,101 @@ test('Supabase session expiry check and session storage work correctly', async (
   await clearAuthSession();
   const cleared = await loadAuthSession();
   assert.equal(cleared, null);
+});
+
+test('loadFreshSession returns unexpired session without fetch and deduplicates concurrent calls', async () => {
+  const validSession: CloudAuthSession = {
+    accessToken: 'valid-jwt-token',
+    refreshToken: 'valid-refresh-token',
+    expiresAt: Date.now() + 3600000,
+    userId: 'user-uuid-1',
+    email: 'operator@funpay.local',
+    savedAt: Date.now()
+  };
+  await saveAuthSession(validSession);
+
+  let fetchCallCount = 0;
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async () => {
+    fetchCallCount++;
+    return new Response(JSON.stringify({}), { status: 200 });
+  }) as typeof fetch;
+
+  try {
+    const [res1, res2] = await Promise.all([
+      loadFreshSession('https://test.supabase.co', 'test-key'),
+      loadFreshSession('https://test.supabase.co', 'test-key')
+    ]);
+    assert.deepEqual(res1, validSession);
+    assert.deepEqual(res2, validSession);
+    assert.equal(fetchCallCount, 0, 'No network requests when session is valid');
+  } finally {
+    globalThis.fetch = originalFetch;
+    await clearAuthSession();
+  }
+});
+
+test('loadFreshSession silently falls back to stored credentials when refresh token is fatal/expired', async () => {
+  const expiredSession: CloudAuthSession = {
+    accessToken: 'expired-jwt',
+    refreshToken: 'dead-refresh-token',
+    expiresAt: Date.now() - 5000,
+    userId: 'user-uuid-1',
+    email: 'operator@funpay.local',
+    savedAt: Date.now() - 3600000
+  };
+  await saveAuthSession(expiredSession);
+  await saveCloudCredentials({ email: 'operator@funpay.local', password: 'secretpassword' });
+
+  const originalFetch = globalThis.fetch;
+  const requests: string[] = [];
+
+  globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = String(input);
+    requests.push(url);
+
+    if (url.includes('grant_type=refresh_token')) {
+      // Simulating GoTrue error on expired/revoked refresh token
+      return new Response(
+        JSON.stringify({ error: 'invalid_grant', error_description: 'Invalid Refresh Token: Refresh Token Not Found' }),
+        { status: 400, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
+
+    if (url.includes('grant_type=password')) {
+      return new Response(
+        JSON.stringify({
+          access_token: 'new-fresh-access-token',
+          refresh_token: 'new-fresh-refresh-token',
+          expires_in: 3600,
+          expires_at: Math.floor(Date.now() / 1000) + 3600,
+          user: { id: 'user-uuid-1', email: 'operator@funpay.local' }
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
+
+    return new Response('Not found', { status: 404 });
+  }) as typeof fetch;
+
+  try {
+    const session = await loadFreshSession('https://test.supabase.co', 'test-key');
+    assert.ok(session);
+    assert.equal(session.accessToken, 'new-fresh-access-token');
+    assert.equal(session.refreshToken, 'new-fresh-refresh-token');
+    assert.equal(isSessionExpired(session), false);
+
+    assert.ok(requests.some(u => u.includes('grant_type=refresh_token')), 'Tried refresh token first');
+    assert.ok(requests.some(u => u.includes('grant_type=password')), 'Fell back to password re-auth');
+
+    // Stored session updated
+    const persisted = await loadAuthSession();
+    assert.equal(persisted?.accessToken, 'new-fresh-access-token');
+  } finally {
+    globalThis.fetch = originalFetch;
+    await clearAuthSession();
+    await saveCloudCredentials(null);
+  }
 });
 
 // ---------------------------------------------------------------------------

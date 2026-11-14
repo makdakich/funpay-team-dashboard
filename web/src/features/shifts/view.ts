@@ -50,6 +50,7 @@ export class ShiftHistoryPage {
   private teamLiveCells: Array<{ node: HTMLElement; shift: Shift }> = [];
   private liveTimer: number | null = null;
   private channel: ReturnType<typeof supabase.channel> | null = null;
+  private wasConnected = false;
   private destroyed = false;
   private loading = false;
 
@@ -162,7 +163,17 @@ export class ShiftHistoryPage {
       })
       .subscribe(status => {
         if (this.destroyed) return;
-        this.setRealtimeLabel(status === 'SUBSCRIBED');
+        const isSubscribed = status === 'SUBSCRIBED';
+        this.setRealtimeLabel(isSubscribed);
+        if (isSubscribed) {
+          if (this.wasConnected) {
+            void this.syncActiveShifts();
+            void this.refresh();
+          }
+          this.wasConnected = true;
+        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+          this.wasConnected = false;
+        }
       });
   }
 

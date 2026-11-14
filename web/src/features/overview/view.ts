@@ -1,4 +1,4 @@
-import type { CurrencyCode, OverviewData, OverviewOrderPoint } from '@/types/database';
+import type { CurrencyCode, OverviewData, OverviewOrderPoint, RecentActivity, Shift } from '@/types/database';
 import type { Granularity, MetricType, PeriodOption } from './metrics';
 import {
   CURRENCIES,
@@ -12,39 +12,171 @@ import {
 import { createButton, createNotice, createSkeleton, element, formatDate, icon, pluralize } from '@/components/ui';
 import { getErrorMessage } from '@/lib/errors';
 import { loadOverview } from './data';
+import { supabase } from '@/lib/supabase';
 
-export function renderOverview(container: HTMLElement, onRefresh: () => void): void {
-  const page = element('section', 'page-stack');
-  const heading = element('div', 'page-heading');
-  const copy = element('div');
-  copy.append(
-    element('div', 'eyebrow', ['КОМАНДА · V2.4']),
-    element('h1', '', ['Обзор & Финансовая Аналитика']),
-    element('p', 'page-description', ['Центр мониторинга выручки, эффективности сменщиков и динамики продаж на FunPay.'])
-  );
-  const refresh = createButton('Обновить', 'button button-secondary', 'refresh');
-  refresh.addEventListener('click', onRefresh);
-  heading.append(copy, refresh);
+export class OverviewPage {
+  private readonly container: HTMLElement;
+  private destroyed = false;
+  private channel: ReturnType<typeof supabase.channel> | null = null;
+  private resizeHandler: (() => void) | null = null;
+  private contentEl: HTMLElement | null = null;
+  private data: OverviewData | null = null;
+  private wasConnected = false;
+  private updateBalanceLive: (() => void) | null = null;
+  private updateShiftsLive: ((activeCount: number, recent: RecentActivity[]) => void) | null = null;
 
-  const content = element('div', 'page-content');
-  content.append(createSkeleton(5));
-  page.append(heading, content);
-  container.replaceChildren(page);
+  constructor(container: HTMLElement) {
+    this.container = container;
+    this.mount();
+    void this.load();
+    this.subscribeRealtime();
+  }
 
-  void loadOverview()
-    .then(data => {
-      content.replaceChildren(buildOverview(data));
-    })
-    .catch(error => {
-      content.replaceChildren(createNotice('error', `Не удалось загрузить обзор: ${getErrorMessage(error)}`));
+  private mount(): void {
+    const page = element('section', 'page-stack');
+    const heading = element('div', 'page-heading');
+    const copy = element('div');
+    copy.append(
+      element('div', 'eyebrow', ['КОМАНДА · V2.4']),
+      element('h1', '', ['Обзор & Финансовая Аналитика']),
+      element('p', 'page-description', ['Центр мониторинга выручки, эффективности сменщиков и динамики продаж на FunPay.'])
+    );
+    const refresh = createButton('Обновить', 'button button-secondary', 'refresh');
+    refresh.addEventListener('click', () => void this.load());
+    heading.append(copy, refresh);
+
+    this.contentEl = element('div', 'page-content');
+    this.contentEl.append(createSkeleton(5));
+    page.append(heading, this.contentEl);
+    this.container.replaceChildren(page);
+  }
+
+  private async load(): Promise<void> {
+    if (this.destroyed || !this.contentEl) return;
+    try {
+      const data = await loadOverview();
+      if (this.destroyed || !this.contentEl) return;
+      this.data = data;
+      this.renderData(data);
+    } catch (error) {
+      if (this.destroyed || !this.contentEl) return;
+      this.contentEl.replaceChildren(createNotice('error', `Не удалось загрузить обзор: ${getErrorMessage(error)}`));
       const retry = createButton('Повторить запрос', 'button button-secondary', 'refresh');
       retry.style.justifySelf = 'start';
-      retry.addEventListener('click', onRefresh);
-      content.append(retry);
-    });
+      retry.addEventListener('click', () => void this.load());
+      this.contentEl.append(retry);
+    }
+  }
+
+  private subscribeRealtime(): void {
+    this.channel = supabase
+      .channel(`overview-live-sync-${Math.random().toString(36).slice(2, 9)}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'team_seller_accounts' }, payload => {
+        if (this.destroyed || !this.data) return;
+        const row = payload.new as any;
+        if (row) {
+          if (typeof row.total_balance === 'number') this.data.totalBalance = row.total_balance;
+          if (row.balances && typeof row.balances === 'object') this.data.balancesByCurrency = row.balances;
+          if (row.balance_currency) this.data.balanceCurrency = row.balance_currency;
+          if (row.balance_updated_at) this.data.balanceUpdatedAt = row.balance_updated_at;
+          if (row.account_name) this.data.storeName = row.account_name;
+          this.updateBalanceLive?.();
+        }
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'shifts' }, () => {
+        if (this.destroyed) return;
+        void this.refreshShifts();
+      })
+      .subscribe(status => {
+        if (this.destroyed) return;
+        if (status === 'SUBSCRIBED') {
+          if (this.wasConnected) {
+            void this.load();
+          }
+          this.wasConnected = true;
+        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+          this.wasConnected = false;
+        }
+      });
+  }
+
+  private async refreshShifts(): Promise<void> {
+    if (this.destroyed || !this.data) return;
+    try {
+      const [activeRes, recentRes, profilesRes] = await Promise.all([
+        supabase.from('shifts').select('id', { count: 'exact', head: true }).eq('status', 'active'),
+        supabase.from('shifts').select('id,user_id,seller_account_id,start_time,end_time,duration_seconds,status').order('start_time', { ascending: false }).limit(6),
+        supabase.from('profiles').select('user_id,display_name')
+      ]);
+      if (this.destroyed || !this.data) return;
+      const activeCount = typeof activeRes.count === 'number' ? activeRes.count : this.data.activeShifts;
+      this.data.activeShifts = activeCount;
+
+      const names = new Map<string, string>();
+      for (const p of (profilesRes.data ?? []) as any[]) {
+        names.set(p.user_id, p.display_name);
+      }
+      const recentActivity: RecentActivity[] = ((recentRes.data ?? []) as Shift[]).map(shift => ({
+        shift,
+        displayName: names.get(shift.user_id) ?? 'Участник команды'
+      }));
+      this.data.recentActivity = recentActivity;
+      this.updateShiftsLive?.(activeCount, recentActivity);
+    } catch {
+      // ignore
+    }
+  }
+
+  private renderData(data: OverviewData): void {
+    if (!this.contentEl) return;
+    const { element: layout, updateBalance, updateShifts, renderChart } = buildOverviewInteractive(data);
+    this.updateBalanceLive = updateBalance;
+    this.updateShiftsLive = updateShifts;
+    this.contentEl.replaceChildren(layout);
+    this.bindWindowResize(renderChart);
+  }
+
+  private bindWindowResize(trigger: () => void): void {
+    if (this.resizeHandler) {
+      window.removeEventListener('resize', this.resizeHandler);
+    }
+    let resizeTimeout: any;
+    this.resizeHandler = () => {
+      clearTimeout(resizeTimeout);
+      resizeTimeout = setTimeout(() => {
+        if (!this.destroyed) trigger();
+      }, 150);
+    };
+    window.addEventListener('resize', this.resizeHandler);
+  }
+
+  destroy(): void {
+    this.destroyed = true;
+    if (this.channel) {
+      void supabase.removeChannel(this.channel);
+      this.channel = null;
+    }
+    if (this.resizeHandler) {
+      window.removeEventListener('resize', this.resizeHandler);
+      this.resizeHandler = null;
+    }
+    this.updateBalanceLive = null;
+    this.updateShiftsLive = null;
+  }
 }
 
-export function buildOverview(data: OverviewData): HTMLElement {
+export function renderOverview(container: HTMLElement, _onRefresh?: () => void): OverviewPage {
+  return new OverviewPage(container);
+}
+
+export interface OverviewInteractiveResult {
+  element: HTMLElement;
+  updateBalance: () => void;
+  updateShifts: (activeCount: number, recentActivity: RecentActivity[]) => void;
+  renderChart: () => void;
+}
+
+export function buildOverviewInteractive(data: OverviewData): OverviewInteractiveResult {
   const stack = element('div', 'overview-layout');
 
   // State for interactive dashboard
@@ -83,7 +215,7 @@ export function buildOverview(data: OverviewData): HTMLElement {
   const metaBox = element('div', 'hero-meta');
   metaBox.append(
     element('span', 'hero-badge', ['БАЛАНС FUNPAY']),
-    element('span', 'hero-sub', [`Пользователь: ${data.storeName || 'Hopeoflove'} ${data.sellerAccountId ? `(ID ${data.sellerAccountId})` : ''}`])
+    element('span', 'hero-sub', [`Пользователь: ${data.storeName || 'Основной магазин'} ${data.sellerAccountId ? `(ID ${data.sellerAccountId})` : ''}`])
   );
 
   const chipsWrap = element('div', 'currency-chips');
@@ -356,7 +488,6 @@ export function buildOverview(data: OverviewData): HTMLElement {
     const range = computeDateRange(chartPeriod, orders);
     chartSubtitle.textContent = range.label;
 
-    // Auto-adjust granularity if period changed and granularity is incompatible
     if (chartPeriod === '7' && chartGranularity === 'months') chartGranularity = 'days';
     if (chartPeriod === 'all' && chartGranularity === 'hours') chartGranularity = 'weeks';
     for (const [k, b] of Object.entries(granButtons)) {
@@ -453,9 +584,10 @@ export function buildOverview(data: OverviewData): HTMLElement {
   teamPanel.append(teamHeading);
 
   const teamKpis = element('div', 'kpi-grid mini-kpi-grid');
+  const activeShiftsCard = createKpi('Активные смены', String(data.activeShifts), data.activeShifts === 0 ? 'нет смен в работе' : pluralize(data.activeShifts, 'смена в работе', 'смены в работе', 'смен в работе'), 'clock', 'green');
   teamKpis.append(
     createKpi('Сотрудники', String(data.activeMembers), pluralize(data.activeMembers, 'активный профиль', 'активных профиля', 'активных профилей'), 'users', 'blue'),
-    createKpi('Активные смены', String(data.activeShifts), data.activeShifts === 0 ? 'нет смен в работе' : pluralize(data.activeShifts, 'смена в работе', 'смены в работе', 'смен в работе'), 'clock', 'green'),
+    activeShiftsCard,
     createKpi('Всего закрыто', data.closedOrders.toLocaleString('ru-RU'), `из ${data.totalOrders.toLocaleString('ru-RU')} заказов`, 'orders', 'violet')
   );
   teamPanel.append(teamKpis);
@@ -463,22 +595,25 @@ export function buildOverview(data: OverviewData): HTMLElement {
   // 4.2 Recent Shifts Activity Panel
   const activityPanel = element('section', 'panel activity-panel');
   const activityHeading = element('div', 'panel-heading');
+  const activityCountBadge = element('span', 'subtle-count', [pluralize(data.recentActivity.length, 'событие', 'события', 'событий')]);
   activityHeading.append(
     element('div', '', [
       element('h2', '', ['Последняя активность']),
       element('p', 'panel-description', ['Недавние события рабочих смен команды'])
     ]),
-    element('span', 'subtle-count', [pluralize(data.recentActivity.length, 'событие', 'события', 'событий')])
+    activityCountBadge
   );
   activityPanel.append(activityHeading);
 
-  if (data.recentActivity.length === 0) {
-    activityPanel.append(
-      emptyState('Пока нет активности', 'Когда участники начнут смены, последние события появятся здесь.')
-    );
-  } else {
+  const activityContentHost = element('div', 'activity-content-host');
+  activityPanel.append(activityContentHost);
+
+  function renderActivityList(items: RecentActivity[]): HTMLElement {
+    if (items.length === 0) {
+      return emptyState('Пока нет активности', 'Когда участники начнут смены, последние события появятся здесь.');
+    }
     const list = element('div', 'activity-list');
-    for (const item of data.recentActivity) {
+    for (const item of items) {
       const row = element('div', 'activity-row');
       const dot = element('span', `activity-marker ${item.shift.status === 'active' ? 'marker-live' : ''}`);
       const details = element('div', 'activity-details');
@@ -489,26 +624,37 @@ export function buildOverview(data: OverviewData): HTMLElement {
       row.append(dot, details, element('time', 'activity-time', [formatDate(item.shift.start_time)]));
       list.append(row);
     }
-    activityPanel.append(list);
+    return list;
   }
 
+  activityContentHost.replaceChildren(renderActivityList(data.recentActivity));
   bottomGrid.append(teamPanel, activityPanel);
 
   // Initial UI updates
   updateExecutiveKpisUI();
   renderChartUI();
 
-  // Handle window resize for chart responsiveness
-  let resizeTimeout: any;
-  window.addEventListener('resize', () => {
-    clearTimeout(resizeTimeout);
-    resizeTimeout = setTimeout(() => {
-      renderChartUI();
-    }, 150);
-  });
-
   stack.append(coverageBar, heroGrid, chartCard, bottomGrid);
-  return stack;
+
+  const updateShifts = (activeCount: number, recent: RecentActivity[]) => {
+    const valEl = activeShiftsCard.querySelector('.kpi-value');
+    const detailEl = activeShiftsCard.querySelector('.kpi-detail');
+    if (valEl) valEl.textContent = String(activeCount);
+    if (detailEl) detailEl.textContent = activeCount === 0 ? 'нет смен в работе' : pluralize(activeCount, 'смена в работе', 'смены в работе', 'смен в работе');
+    activityCountBadge.textContent = pluralize(recent.length, 'событие', 'события', 'событий');
+    activityContentHost.replaceChildren(renderActivityList(recent));
+  };
+
+  return {
+    element: stack,
+    updateBalance: updateExecutiveKpisUI,
+    updateShifts,
+    renderChart: renderChartUI
+  };
+}
+
+export function buildOverview(data: OverviewData): HTMLElement {
+  return buildOverviewInteractive(data).element;
 }
 
 function createKpi(label: string, value: string, detail: string, iconName: 'users' | 'clock' | 'orders', accent: string): HTMLElement {

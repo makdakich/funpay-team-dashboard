@@ -21,6 +21,8 @@ expected_files = [
     '008_rpc_functions.sql',
     '009_validation.sql',
     '010_multi_owner_and_access.sql',
+    '011_historical_shifts_import.sql',
+    '012_seller_account_balance_and_realtime.sql',
     'README.md',
     'ROLLBACK.md',
     'SCHEMA_OVERVIEW.md',
