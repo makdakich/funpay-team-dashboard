@@ -1279,7 +1279,17 @@ class OptionsController {
     const emptyBox = document.getElementById('shifts-empty');
     if (!tbody) return;
 
-    let filtered = [...this.shifts];
+    const seenTimes = new Set<number>();
+    const seenIds = new Set<string>();
+    let filtered = [...this.shifts].filter(s => {
+      if (!s.startTime) return false;
+      const minuteBucket = Math.round(s.startTime / 60000);
+      if (s.id && seenIds.has(s.id)) return false;
+      if (seenTimes.has(minuteBucket)) return false;
+      if (s.id) seenIds.add(s.id);
+      seenTimes.add(minuteBucket);
+      return true;
+    });
 
     // Filter by operator
     if (this.shiftsOperatorFilter !== 'all') {
@@ -1387,13 +1397,13 @@ class OptionsController {
       return `
         <tr>
           <td><strong>${dateFormatted}</strong></td>
-          <td><span class="operator-badge">👤 ${s.operatorName || 'Оператор 1'}</span></td>
+          <td><span class="operator-badge">👤 ${s.operatorName && s.operatorName !== 'Оператор' && s.operatorName !== 'Оператор 1' ? s.operatorName : 'Алекс'}</span></td>
           <td class="tabular-nums">${intervalStr}</td>
           <td class="tabular-nums" style="font-weight: 600; color: #34D399;">${durStr}</td>
           <td>${ordersBtn}</td>
           <td class="tabular-nums" style="font-weight: 600;">${turnoverFormatted}</td>
           <td class="tabular-nums" style="color: #34D399; font-weight: 600;">${shareFormatted}</td>
-          <td style="color: var(--text-muted); font-size: 11px; max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${s.note || '—'}</td>
+          <td style="color: var(--text-muted); font-size: 11px; max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${(s.note === 'Облачная смена другого оператора' ? '' : s.note) || '—'}</td>
           <td style="text-align: right;">
             <div style="display: inline-flex; gap: 6px;">
               <button class="btn btn-xs btn-outline btn-edit-shift" data-shift-id="${s.id}" title="Редактировать смену">✏️</button>

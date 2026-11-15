@@ -1,4 +1,4 @@
-import { loadState, updateSettings, saveProfiles, saveTemplates, saveCache, clearApiKey, exportSettings, importSettings, loadShiftState, startShift, stopShift, loadShiftHistory, saveShift, deleteShift, recalculateShifts } from '../storage/storage';
+import { loadState, updateSettings, saveProfiles, saveTemplates, saveCache, clearApiKey, exportSettings, importSettings, loadShiftState, startShift, stopShift, loadShiftHistory, saveShift, deleteShift, recalculateShifts, sanitizeAndDeduplicateShifts } from '../storage/storage';
 import { upsertProfile, deleteProfile, upsertTemplate, deleteTemplate } from '../storage/profiles';
 import { FunPayClient } from '../api/client';
 import { DEFAULT_SUPABASE_CONFIG, SupabaseClient } from '../api/supabase';
@@ -737,10 +737,11 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         }
 
         case 'GET_SHIFT_HISTORY': {
-          const localHistory = await loadShiftHistory();
+          let localHistory = await loadShiftHistory();
           try {
             const state = await loadState();
-            if (state.settings.cloudSyncEnabled) {
+            const cloudSyncEnabled = state.settings.cloudSyncEnabled !== false;
+            if (cloudSyncEnabled) {
               const { client, userId } = await createCloudClient();
               const cloudShifts = await client.fetchCloudShifts(150, {
                 localOrders: state.cache.orders || [],
@@ -748,47 +749,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
                 currentUserId: userId ?? undefined
               });
               if (cloudShifts && cloudShifts.length > 0) {
-                // Обогащаем облачные смены локальными расчётами earnings, если в облаке ещё нет привязанных заказов
-                const localByTime = new Map<number, CompletedShift>();
-                const localById = new Map<string, CompletedShift>();
-                for (const loc of localHistory) {
-                  if (loc.id) localById.set(loc.id, loc);
-                  if (loc.legacyId) localById.set(loc.legacyId, loc);
-                  localByTime.set(Math.round(loc.startTime / 1000), loc);
-                }
-
-                const enrichedCloudShifts = cloudShifts.map(s => {
-                  const match = (s.id && localById.get(s.id)) ||
-                                (s.legacyId && localById.get(s.legacyId)) ||
-                                localByTime.get(Math.round(s.startTime / 1000));
-                  if (match && (!s.earnings || s.earnings.ordersCount === 0) && match.earnings && match.earnings.ordersCount > 0) {
-                    return {
-                      ...s,
-                      earnings: match.earnings,
-                      note: s.note || match.note
-                    };
-                  }
-                  return s;
-                });
-
-                const seen = new Set<string>();
-                for (const s of enrichedCloudShifts) {
-                  if (s.id) seen.add(s.id);
-                  if (s.legacyId) seen.add(s.legacyId);
-                  seen.add(`time_${Math.round(s.startTime / 1000)}`);
-                }
-                const combined = [...enrichedCloudShifts];
-                for (const loc of localHistory) {
-                  const hasId = loc.id && seen.has(loc.id);
-                  const hasLegacy = loc.legacyId && seen.has(loc.legacyId);
-                  const hasTime = seen.has(`time_${Math.round(loc.startTime / 1000)}`);
-                  if (!hasId && !hasLegacy && !hasTime) {
-                    if (loc.id) seen.add(loc.id);
-                    seen.add(`time_${Math.round(loc.startTime / 1000)}`);
-                    combined.push(loc);
-                  }
-                }
-                combined.sort((a, b) => b.startTime - a.startTime);
+                const combined = sanitizeAndDeduplicateShifts([...cloudShifts, ...localHistory]);
                 await chrome.storage.local.set({ [STORAGE_KEYS.SHIFT_HISTORY]: combined });
                 sendResponse({ success: true, history: combined });
                 break;
