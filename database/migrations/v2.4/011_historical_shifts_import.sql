@@ -139,8 +139,13 @@ BEGIN
             v_shift_uuid := extensions.uuid_generate_v5(extensions.uuid_ns_url(), 'funpay:shift:' || v_caller_id || ':' || v_start_time::text);
         END IF;
 
-        -- Проверяем, не существует ли уже смена с таким ID или legacy_id
-        IF EXISTS (SELECT 1 FROM public.shifts WHERE id = v_shift_uuid OR (legacy_id IS NOT NULL AND legacy_id = v_legacy_id)) THEN
+        -- Защита от дубликатов: проверяем ID, legacy_id, а также точные временные границы
+        IF EXISTS (
+            SELECT 1 FROM public.shifts 
+            WHERE id = v_shift_uuid 
+               OR (legacy_id IS NOT NULL AND legacy_id = v_legacy_id)
+               OR (user_id = v_caller_id AND start_time = v_start_time AND end_time = v_end_time)
+        ) THEN
             v_skipped_count := v_skipped_count + 1;
             CONTINUE;
         END IF;

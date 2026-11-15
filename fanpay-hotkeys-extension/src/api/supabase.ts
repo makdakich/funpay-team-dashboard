@@ -391,12 +391,16 @@ export class SupabaseClient {
       const parsedEnd = row.end_time ? Date.parse(row.end_time) : NaN;
       const endTime = Number.isNaN(parsedEnd) ? startTime + durationMs : parsedEnd;
 
+      const profile = Array.isArray(row.profiles) ? row.profiles[0] : row.profiles;
+      const displayName = profile?.display_name || undefined;
+      const operatorName = displayName || (row.profiles as { display_name?: string | null })?.display_name || 'Алекс';
+
       const isOwnShift =
         !options.currentUserId ||
         row.user_id === options.currentUserId ||
-        row.profiles?.display_name === 'Алекс' ||
-        row.profiles?.display_name === 'Создатель' ||
-        row.profiles?.display_name === 'kubinovkurtas';
+        operatorName === 'Алекс' ||
+        operatorName === 'Создатель' ||
+        operatorName === 'kubinovkurtas';
 
       const cloudStats = ordersMap.get(row.id) || (row.legacy_id ? ordersMap.get(row.legacy_id) : undefined);
       let earnings: ShiftEarnings;
@@ -411,7 +415,7 @@ export class SupabaseClient {
           refundedTurnover: 0,
           sellerShare: rubShare
         };
-      } else if (isOwnShift && startTime > 0 && settings.localOrders.length > 0) {
+      } else if (startTime > 0 && settings.localOrders.length > 0) {
         earnings = calculateShiftEarnings(startTime, endTime, settings.localOrders, settings.sellerSharePercent);
       } else {
         earnings = { ...EMPTY_EARNINGS };
@@ -420,7 +424,7 @@ export class SupabaseClient {
       return {
         id: row.id,
         legacyId: row.legacy_id || undefined,
-        operatorName: row.profiles?.display_name || 'Оператор',
+        operatorName,
         startTime,
         endTime,
         duration: durationMs,
@@ -428,9 +432,7 @@ export class SupabaseClient {
         earnings,
         note: row.status === 'active'
           ? '🟢 В процессе'
-          : isOwnShift
-            ? undefined
-            : 'Облачная смена другого оператора'
+          : undefined
       } as CompletedShift;
     });
   }

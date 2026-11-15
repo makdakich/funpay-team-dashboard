@@ -748,13 +748,36 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
                 currentUserId: userId ?? undefined
               });
               if (cloudShifts && cloudShifts.length > 0) {
+                // Обогащаем облачные смены локальными расчётами earnings, если в облаке ещё нет привязанных заказов
+                const localByTime = new Map<number, CompletedShift>();
+                const localById = new Map<string, CompletedShift>();
+                for (const loc of localHistory) {
+                  if (loc.id) localById.set(loc.id, loc);
+                  if (loc.legacyId) localById.set(loc.legacyId, loc);
+                  localByTime.set(Math.round(loc.startTime / 1000), loc);
+                }
+
+                const enrichedCloudShifts = cloudShifts.map(s => {
+                  const match = (s.id && localById.get(s.id)) ||
+                                (s.legacyId && localById.get(s.legacyId)) ||
+                                localByTime.get(Math.round(s.startTime / 1000));
+                  if (match && (!s.earnings || s.earnings.ordersCount === 0) && match.earnings && match.earnings.ordersCount > 0) {
+                    return {
+                      ...s,
+                      earnings: match.earnings,
+                      note: s.note || match.note
+                    };
+                  }
+                  return s;
+                });
+
                 const seen = new Set<string>();
-                for (const s of cloudShifts) {
+                for (const s of enrichedCloudShifts) {
                   if (s.id) seen.add(s.id);
                   if (s.legacyId) seen.add(s.legacyId);
                   seen.add(`time_${Math.round(s.startTime / 1000)}`);
                 }
-                const combined = [...cloudShifts];
+                const combined = [...enrichedCloudShifts];
                 for (const loc of localHistory) {
                   const hasId = loc.id && seen.has(loc.id);
                   const hasLegacy = loc.legacyId && seen.has(loc.legacyId);
@@ -780,8 +803,8 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
         case 'CHECK_HISTORICAL_SHIFTS': {
           const history = await loadShiftHistory();
-          // Смена считается исторической, если она содержит старый ID (не UUID) или ник "Алекс"
-          const legacyShifts = history.filter(s => s.id && (!/^[0-9a-f-]{36}$/i.test(s.id) || s.operatorName === 'Алекс'));
+          // Смена считается исторической, если она содержит старый ID (не UUID)
+          const legacyShifts = history.filter(s => s.id && !/^[0-9a-f-]{36}$/i.test(s.id));
           sendResponse({ success: true, count: legacyShifts.length, shifts: legacyShifts });
           break;
         }
@@ -789,7 +812,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         case 'IMPORT_HISTORICAL_SHIFTS': {
           try {
             const history = await loadShiftHistory();
-            const legacyShifts = history.filter(s => s.id && (!/^[0-9a-f-]{36}$/i.test(s.id) || s.operatorName === 'Алекс'));
+            const legacyShifts = history.filter(s => s.id && !/^[0-9a-f-]{36}$/i.test(s.id));
             if (legacyShifts.length === 0) {
               sendResponse({
                 success: true,
@@ -816,9 +839,31 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
                 const currentLocal = await loadShiftHistory();
 
                 if (cloudShifts && cloudShifts.length > 0) {
-                  const cloudIds = new Set(cloudShifts.map(s => s.id));
+                  const localByTime = new Map<number, CompletedShift>();
+                  const localById = new Map<string, CompletedShift>();
+                  for (const loc of currentLocal) {
+                    if (loc.id) localById.set(loc.id, loc);
+                    if (loc.legacyId) localById.set(loc.legacyId, loc);
+                    localByTime.set(Math.round(loc.startTime / 1000), loc);
+                  }
+
+                  const enrichedCloudShifts = cloudShifts.map(s => {
+                    const match = (s.id && localById.get(s.id)) ||
+                                  (s.legacyId && localById.get(s.legacyId)) ||
+                                  localByTime.get(Math.round(s.startTime / 1000));
+                    if (match && (!s.earnings || s.earnings.ordersCount === 0) && match.earnings && match.earnings.ordersCount > 0) {
+                      return {
+                        ...s,
+                        earnings: match.earnings,
+                        note: s.note || match.note
+                      };
+                    }
+                    return s;
+                  });
+
+                  const cloudIds = new Set(enrichedCloudShifts.map(s => s.id));
                   const cloudLegacyIds = new Set(
-                    cloudShifts
+                    enrichedCloudShifts
                       .map(s => s.legacyId)
                       .filter((id): id is string => Boolean(id))
                   );
@@ -828,7 +873,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
                     const isConfirmedInCloud = cloudIds.has(s.id) || cloudLegacyIds.has(s.id);
                     return !isConfirmedInCloud;
                   });
-                  const mergedHistory = [...cloudShifts, ...nonLegacyLocal].sort((a, b) => b.startTime - a.startTime);
+                  const mergedHistory = [...enrichedCloudShifts, ...nonLegacyLocal].sort((a, b) => b.startTime - a.startTime);
                   await chrome.storage.local.set({ fphk_shift_history: mergedHistory });
                 } else {
                   // Защита от потери данных: если fetchCloudShifts вернул пустой список или завершился ошибкой,
