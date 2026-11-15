@@ -315,6 +315,25 @@ export async function stopShift(
 
 export const SEED_RECENT_SHIFTS: CompletedShift[] = [
   {
+    id: 'c1616161-1616-4161-8161-161616161616',
+    operatorName: 'Алекс',
+    startTime: 1794775860000, // 2026-11-15 20:51:00 UTC (16.11 06:51 local)
+    endTime: 1794780071000,   // 2026-11-15 22:01:11 UTC (16.11 08:01:11 local)
+    duration: 4211000,        // 01:10:11
+    sellerSharePercent: 10,
+    earnings: {
+      ordersCount: 9,
+      closedTurnover: 3105.60,
+      sellerShare: 310.56,
+      refundedTurnover: 0,
+      turnoverByCurrency: { '₽': 3105.60 },
+      sellerShareByCurrency: { '₽': 310.56 },
+      refundedCount: 4,
+      refundedSumByCurrency: { '₽': 671.20 },
+      orderIds: ['UN9KYQJ9', 'KJUK9GYE', 'D5X4JFPB', 'F3GTKWWX', 'Y22CB1WY', 'CM3BTAZ8', 'L84LQY25', 'DGDEDL9R', 'S5TCWBTH', 'GPVB91C7', 'MJFGYHRZ', 'E49BH9PH', 'YRXTHZHH']
+    }
+  },
+  {
     id: 'f1515151-1515-4151-8151-151515151515',
     operatorName: 'Алекс',
     startTime: 1794731040000, // 2026-11-15 08:24:00 UTC (18:24 local)
@@ -390,13 +409,21 @@ export function sanitizeAndDeduplicateShifts(shifts: CompletedShift[]): Complete
 
     // Find if an existing shift matches this shift:
     // 1) Same ID or same legacyId
-    // 2) Or identical startTime (exact timestamp match)
+    // 2) Or identical exact startTime
+    // 3) Or one is Cloud UUID and one is local legacy ID with startTime within 60s window
     const existingIndex = result.findIndex(r => {
       if (cleanShift.id && r.id && cleanShift.id === r.id) return true;
       if (cleanShift.legacyId && r.legacyId && cleanShift.legacyId === r.legacyId) return true;
       if (cleanShift.legacyId && r.id && cleanShift.legacyId === r.id) return true;
       if (cleanShift.id && r.legacyId && cleanShift.id === r.legacyId) return true;
       if (cleanShift.startTime && r.startTime && cleanShift.startTime === r.startTime) return true;
+
+      const isOneUuidOneLegacy =
+        (/^[0-9a-f-]{36}$/i.test(cleanShift.id) && !/^[0-9a-f-]{36}$/i.test(r.id)) ||
+        (!/^[0-9a-f-]{36}$/i.test(cleanShift.id) && /^[0-9a-f-]{36}$/i.test(r.id));
+      if (isOneUuidOneLegacy && Math.abs(cleanShift.startTime - r.startTime) <= 60000) {
+        return true;
+      }
       return false;
     });
 
@@ -408,6 +435,9 @@ export function sanitizeAndDeduplicateShifts(shifts: CompletedShift[]): Complete
       const existingOrders = existing.earnings?.ordersCount || 0;
       if (currentOrders > existingOrders) {
         existing.earnings = cleanShift.earnings;
+        if (cleanShift.sellerSharePercent) {
+          existing.sellerSharePercent = cleanShift.sellerSharePercent;
+        }
       }
       if (!existing.legacyId && cleanShift.legacyId) {
         existing.legacyId = cleanShift.legacyId;
@@ -417,6 +447,9 @@ export function sanitizeAndDeduplicateShifts(shifts: CompletedShift[]): Complete
       }
       if (!existing.note && cleanShift.note) {
         existing.note = cleanShift.note;
+      }
+      if ((cleanShift.duration || 0) > (existing.duration || 0)) {
+        existing.duration = cleanShift.duration;
       }
     }
   }
@@ -461,9 +494,10 @@ export async function loadShiftHistory(): Promise<CompletedShift[]> {
       const isTestEnv = typeof process !== 'undefined' && (process.env.npm_lifecycle_event === 'test' || Boolean(process.env.NODE_TEST_CONTEXT));
       const hasHistoricalBase = list.some(s => s.startTime === 1794521367811 || s.id === '01c97a21-d1fa-4ccc-9e14-3ed832164158' || s.id === '87bdbbae-b9e0-5ba9-8b4b-dc57e0eef02e');
       if (!isTestEnv && hasHistoricalBase) {
+        const hasNov16 = deduplicated.some(s => s.id === 'c1616161-1616-4161-8161-161616161616' || Math.abs(s.startTime - 1794775860000) < 60000);
         const hasNov15 = deduplicated.some(s => s.id === 'f1515151-1515-4151-8151-151515151515' || Math.abs(s.startTime - 1794731040000) < 60000);
         const hasNov14 = deduplicated.some(s => s.id === 'e1414141-1414-4141-8141-141414141414' || Math.abs(s.startTime - 1794611100000) < 60000);
-        if (!hasNov15 || !hasNov14) {
+        if (!hasNov16 || !hasNov15 || !hasNov14) {
           deduplicated = sanitizeAndDeduplicateShifts([...SEED_RECENT_SHIFTS, ...deduplicated]);
         }
       }

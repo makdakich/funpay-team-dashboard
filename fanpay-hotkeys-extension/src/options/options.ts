@@ -33,6 +33,7 @@ import {
   formatDateForInput
 } from '../../src/shared/analytics';
 import { FunPayClientsAdapter } from '../api/adapters/clients';
+import { sanitizeAndDeduplicateShifts } from '../storage/storage';
 
 class OptionsController {
   private state: ExtensionState | null = null;
@@ -1279,17 +1280,7 @@ class OptionsController {
     const emptyBox = document.getElementById('shifts-empty');
     if (!tbody) return;
 
-    const seenTimes = new Set<number>();
-    const seenIds = new Set<string>();
-    let filtered = [...this.shifts].filter(s => {
-      if (!s.startTime) return false;
-      const minuteBucket = Math.round(s.startTime / 60000);
-      if (s.id && seenIds.has(s.id)) return false;
-      if (seenTimes.has(minuteBucket)) return false;
-      if (s.id) seenIds.add(s.id);
-      seenTimes.add(minuteBucket);
-      return true;
-    });
+    let filtered = sanitizeAndDeduplicateShifts(this.shifts);
 
     // Filter by operator
     if (this.shiftsOperatorFilter !== 'all') {
@@ -1510,22 +1501,49 @@ class OptionsController {
 
     if (titleEl) titleEl.textContent = `Смена: ${shift.operatorName} (${formatDuration(shift.duration)})`;
 
-    const parts = Object.entries(shift.earnings?.turnoverByCurrency || {}).map(([c, amt]) => formatMoney(amt, c));
+    // Calculate live financial metrics from the shift's orders
+    const closedOrders = orders.filter(o => o.status === 'closed' || o.status === 'paid');
+    const refundedOrders = orders.filter(o => o.status === 'refunded');
+
+    const turnoverByCurr: Record<string, number> = {};
+    const shareByCurr: Record<string, number> = {};
+    const rate = shift.sellerSharePercent ?? this.state?.settings?.sellerSharePercent ?? 10;
+
+    for (const o of closedOrders) {
+      const curr = normalizeCurrency(o.currency || '₽');
+      const price = o.price || 0;
+      turnoverByCurr[curr] = (turnoverByCurr[curr] || 0) + price;
+      const share = price * (rate / 100);
+      shareByCurr[curr] = (shareByCurr[curr] || 0) + share;
+    }
+
+    // Fallback to shift.earnings if local cache is empty but earnings were saved
+    if (closedOrders.length === 0 && shift.earnings?.turnoverByCurrency) {
+      Object.assign(turnoverByCurr, shift.earnings.turnoverByCurrency);
+      if (shift.earnings.sellerShareByCurrency) {
+        Object.assign(shareByCurr, shift.earnings.sellerShareByCurrency);
+      }
+    }
+
+    const parts = Object.entries(turnoverByCurr).map(([c, amt]) => formatMoney(amt, c));
     const turnStr = parts.length > 0 ? parts.join(' • ') : '0 ₽';
+
+    const shareParts = Object.entries(shareByCurr).map(([c, amt]) => formatMoney(amt, c));
+    const shareStr = shareParts.length > 0 ? shareParts.join(' • ') : '0 ₽';
 
     if (summaryEl) {
       summaryEl.innerHTML = `
         <div>
           <div style="font-size:11px; color:var(--text-muted);">Заказов за смену:</div>
-          <div style="font-size:16px; font-weight:700; color:#fff;">${orders.length}</div>
+          <div style="font-size:16px; font-weight:700; color:#fff;">${closedOrders.length > 0 ? `${closedOrders.length} закрыто` : `${orders.length} шт.`} ${refundedOrders.length > 0 ? `<span style="font-size:12px; color:var(--accent-rose);">(${refundedOrders.length} возвр.)</span>` : ''}</div>
         </div>
         <div>
           <div style="font-size:11px; color:var(--text-muted);">Оборот смены:</div>
           <div style="font-size:16px; font-weight:700; color:var(--accent-emerald);">${turnStr}</div>
         </div>
         <div>
-          <div style="font-size:11px; color:var(--text-muted);">Ставка:</div>
-          <div style="font-size:16px; font-weight:700; color:#fff;">${shift.sellerSharePercent}%</div>
+          <div style="font-size:11px; color:var(--text-muted);">Доля (${rate}%):</div>
+          <div style="font-size:16px; font-weight:700; color:#34D399;">${shareStr}</div>
         </div>
       `;
     }
@@ -1538,11 +1556,12 @@ class OptionsController {
           const statusPill = o.status === 'closed'
             ? '<span class="status-pill closed">Закрыт</span>'
             : (o.status === 'paid' ? '<span class="status-pill paid">Оплачен</span>' : '<span class="status-pill refunded">Возврат</span>');
+          const productTitle = o.description || (o as any).subcategory || (o as any).title || (o as any).category || 'Товар';
           return `
             <tr>
               <td><strong style="font-family:var(--font-mono); font-size:11px;">#${o.id}</strong></td>
               <td>${o.dateStr}</td>
-              <td>${o.title}</td>
+              <td>${productTitle}</td>
               <td class="tabular-nums" style="font-weight:600;">${formatMoney(o.price, o.currency)}</td>
               <td>${statusPill}</td>
             </tr>
